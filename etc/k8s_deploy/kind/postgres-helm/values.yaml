@@ -1,0 +1,10 @@
+auth:
+  postgresPassword: ${DB_PASSWORD}
+  existingSecret: ""
+replication:
+  enabled: false
+primary:
+  initdb:
+    scripts:
+      init.sql: | 
+        CREATE DATABASE cms;
