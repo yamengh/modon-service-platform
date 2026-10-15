@@ -18,5 +18,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
+    // Each test starts with fresh mocks (no calls or responses left over from earlier tests).
+    mockReset: true,
   },
 });

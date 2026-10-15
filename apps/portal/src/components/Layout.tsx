@@ -1,4 +1,4 @@
-import { Link, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n/I18nContext";
 
@@ -15,7 +15,8 @@ export function Layout() {
           <span className="brand-sub">{t("appSubtitle")}</span>
         </Link>
         <nav className="topnav">
-          <Link to="/services">{t("modonServices")}</Link>
+          <NavLink to="/services">{t("modonServices")}</NavLink>
+          <NavLink to="/requests">{t("myRequests")}</NavLink>
         </nav>
         <div className="topbar-end">
           <button type="button" className="link-btn" onClick={toggleLang}>

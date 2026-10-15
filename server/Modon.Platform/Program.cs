@@ -1,10 +1,18 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using FormCMS;
 using FormCMS.Auth.Models;
 using FormCMS.Infrastructure.RelationDbDao;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Modon.Platform.Catalog;
+using Modon.Platform.Data;
+using Modon.Platform.Documents;
+using Modon.Platform.Http;
 using Modon.Platform.Identity;
+using Modon.Platform.Lookups;
+using Modon.Platform.Requests;
+using Modon.Platform.Requests.Workflow;
 using Modon.Platform.Seeding;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,6 +54,25 @@ builder.Services.AddCmsAuth<CmsUser, IdentityRole, CmsDbContext>(
 builder.Services.AddAuditLog();
 builder.Services.AddNotify();
 
+// Modon workflow data (requests, history, attachments, establishments) — own EF Core context.
+builder.Services.AddModonDbContext(dbProvider, connStr);
+builder.Services.ConfigureHttpJsonOptions(o =>
+{
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestStatus>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestAction>(JsonNamingPolicy.CamelCase));
+});
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<IRequestWorkflow, InProcessRequestWorkflow>();
+builder.Services.AddScoped<ILookupService, LookupService>();
+builder.Services.AddScoped<ExcavationValidator>();
+builder.Services.AddSingleton<UploadValidator>();
+builder.Services.AddScoped<RequestService>();
+
+// Private documents live outside wwwroot, so they are never served as static files.
+var documentsRoot = builder.Configuration.GetValue<string>("Modon:Documents:Root")
+                    ?? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "private-documents");
+builder.Services.AddSingleton<IPrivateDocumentStore>(new LocalPrivateDocumentStore(documentsRoot));
+
 var app = builder.Build();
 
 // Identity tables must be created before FormCMS creates its own tables.
@@ -56,10 +83,15 @@ using (var scope = app.Services.CreateScope())
 }
 
 await app.UseCmsAsync();
+await app.EnsureModonSchemaAsync(dbProvider);
+
+app.UseModonClientHeader();
 app.MapPersonaEndpoints();
+app.MapRequestEndpoints();
 
 await DevUserSeeder.EnsureRolesAsync(app);
 await CatalogSeeder.SeedAsync(app.Services);
+await LookupSeeder.SeedAsync(app.Services);
 if (app.Configuration.GetValue<bool>("Modon:SeedDevUsers"))
 {
     var password = app.Configuration.GetValue<string>("Modon:DevUserPassword") ?? DevUserSeeder.DefaultDevPassword;

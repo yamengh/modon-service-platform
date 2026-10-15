@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { api } from "../api/client";
 import type { ServiceDetail } from "../api/types";
 import { useAuth } from "../auth/AuthContext";
 import { useI18n } from "../i18n/I18nContext";
+import { OPEN_SERVICES } from "../requests/serviceAvailability";
 
 type Load =
   | { status: "loading" }
@@ -17,7 +18,10 @@ export function ServiceDetailPage() {
   const { code = "" } = useParams();
   const { t, pick } = useI18n();
   const { state } = useAuth();
+  const navigate = useNavigate();
   const [load, setLoad] = useState<Load>({ status: "loading" });
+  const [starting, setStarting] = useState(false);
+  const [startFailed, setStartFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -56,6 +60,21 @@ export function ServiceDetailPage() {
   const s = load.service;
   const personas: string[] = state.status === "authenticated" ? state.user.personas : [];
   const forOtherPersona = !personas.includes(s.beneficiary);
+  // Only services with a portal form can be started, and only by the personas allowed to apply.
+  const open = OPEN_SERVICES[s.code];
+  const canStart = !!open && open.personas.some((p) => personas.includes(p));
+
+  async function start() {
+    setStarting(true);
+    setStartFailed(false);
+    try {
+      const draft = await api.createRequest(s.code);
+      navigate(open.formPath(draft.id));
+    } catch {
+      setStartFailed(true);
+      setStarting(false);
+    }
+  }
   const info: [string, string][] = [
     [t("beneficiary"), t(`beneficiary.${s.beneficiary}`)],
     [t("duration"), pick(s, "duration") || t("notSpecified")],
@@ -87,13 +106,24 @@ export function ServiceDetailPage() {
         </section>
 
         <aside className="card info">
-          <button type="button" className="btn primary block" disabled aria-describedby="start-hint">
-            {t("startService")}
+          <button
+            type="button"
+            className="btn primary block"
+            disabled={!canStart || starting}
+            aria-describedby="start-hint"
+            onClick={() => void start()}
+          >
+            {starting ? t("startingService") : t("startService")}
           </button>
-          <p id="start-hint" className="hint">
-            {t("startServiceSoon")}
-          </p>
-          {forOtherPersona && <p className="hint warn">{t("serviceForOtherPersona")}</p>}
+          <div id="start-hint">
+            {!open && <p className="hint">{t("startServiceSoon")}</p>}
+            {forOtherPersona && <p className="hint warn">{t("serviceForOtherPersona")}</p>}
+          </div>
+          {startFailed && (
+            <p className="alert" role="alert">
+              {t("startFailed")}
+            </p>
+          )}
           <dl>
             {info.map(([label, value]) => (
               <div key={label}>

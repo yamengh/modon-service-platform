@@ -77,6 +77,7 @@ node_modules/
 apps/*/dist/
 server/Modon.Platform/*.db*
 server/Modon.Platform/wwwroot/files/
+server/Modon.Platform/App_Data/
 
 # Local environment files and secrets
 .env
