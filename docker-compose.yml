@@ -1,0 +1,27 @@
+# Local development database for Modon.Platform (application data only).
+# Camunda keeps its own storage in its own Docker setup; nothing here touches it.
+#
+#   docker compose up -d      start PostgreSQL in the background
+#   docker compose down       stop it (data is kept in the "modon_pgdata" volume)
+#
+# Host port 5433 is used so it does not clash with any other PostgreSQL on 5432.
+services:
+  modon-postgres:
+    image: postgres:16-alpine
+    container_name: modon-postgres
+    environment:
+      POSTGRES_DB: modon
+      POSTGRES_USER: modon
+      POSTGRES_PASSWORD: modon_dev_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - modon_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modon -d modon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  modon_pgdata:

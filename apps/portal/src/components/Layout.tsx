@@ -1,0 +1,44 @@
+import { Link, Outlet } from "react-router-dom";
+import { useAuth } from "../auth/AuthContext";
+import { useI18n } from "../i18n/I18nContext";
+
+export function Layout() {
+  const { state, logout } = useAuth();
+  const { t, toggleLang } = useI18n();
+  const user = state.status === "authenticated" ? state.user : null;
+
+  return (
+    <>
+      <header className="topbar">
+        <Link to="/services" className="brand">
+          <span className="brand-name">{t("appName")}</span>
+          <span className="brand-sub">{t("appSubtitle")}</span>
+        </Link>
+        <nav className="topnav">
+          <Link to="/services">{t("modonServices")}</Link>
+        </nav>
+        <div className="topbar-end">
+          <button type="button" className="link-btn" onClick={toggleLang}>
+            {t("switchLang")}
+          </button>
+          {user && (
+            <>
+              <span className="user">
+                <span className="user-email">{user.email}</span>
+                {user.personas.map((p) => (
+                  <span key={p} className="badge">
+                    {t(`persona.${p}`)}
+                  </span>
+                ))}
+              </span>
+              <button type="button" className="btn secondary small" onClick={() => void logout()}>
+                {t("signOut")}
+              </button>
+            </>
+          )}
+        </div>
+      </header>
+      <Outlet />
+    </>
+  );
+}

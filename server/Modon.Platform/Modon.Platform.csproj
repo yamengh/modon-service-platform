@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <LangVersion>14</LangVersion>
+        <RootNamespace>Modon.Platform</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- FormCMS core is referenced as-is; Modon code lives only in this project. -->
+        <ProjectReference Include="..\FormCMS\FormCMS.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <InternalsVisibleTo Include="Modon.Platform.Tests" />
+    </ItemGroup>
+
+</Project>

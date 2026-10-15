@@ -71,3 +71,14 @@ formcms.settings.json
 *.tfstate.backup
 .terraform.lock.hcl
 server/FormCMS.MonoApp/plugins/YoutubeDownloader.dll
+
+# Modon platform
+node_modules/
+apps/*/dist/
+server/Modon.Platform/*.db*
+server/Modon.Platform/wwwroot/files/
+
+# Local environment files and secrets
+.env
+.env.*
+!.env.example
