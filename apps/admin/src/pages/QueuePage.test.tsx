@@ -22,6 +22,8 @@ describe("Dashboard", () => {
     expect(screen.getByRole("link", { name: "قيد التنفيذ: 4" })).toHaveAttribute("href", "/requests?status=inProgress");
     expect(screen.getByRole("link", { name: "إكمال النواقص: 2" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "مرفوض: 1" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "بانتظار خطابات التنسيق: 0" }))
+      .toHaveAttribute("href", "/requests?status=awaitingCoordinationLetters");
   });
 
   it("shows an error with a retry button", async () => {

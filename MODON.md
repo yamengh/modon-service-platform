@@ -12,17 +12,20 @@ This repository is **FormCMS** plus a Modon layer built on top of it. The FormCM
 | `docker-compose.yml` | PostgreSQL for local development. |
 | `modon-platform.sln` | Solution with only FormCMS + Modon projects (open this one in your IDE). |
 
-**Current milestone (3):**
+**Current milestone (4):** every Excavation Works Permit path in the manual works end to end.
 
-- **Partner portal** — sign-in, the service catalogue, and a working **Excavation Works Permit** application
-  (drafts, the full form, six required attachments, submission and request tracking).
+- **Partner portal** — sign-in, the service catalogue, and the **Excavation Works Permit** application
+  (drafts, the full form, six required attachments, submission and request tracking), plus:
+  - a **task inbox** (**المهام**) listing requests that Modon returned or that are waiting for coordination letters;
+  - **return → edit → resubmit**: reopen a returned request, save changes, and resubmit it (same request, same number);
+  - **coordination letters**: upload, replace or remove the three letters, then send them.
 - **Admin portal** — staff sign-in, a dashboard of request counts by status, a filterable request queue,
-  full request details (form, applicant, attachments, audit history), and review decisions:
-  **approve**, **return for completion** (comment required) and **reject** (reason required).
+  full request details (form, applicant, attachments, coordination letters, audit history), and review decisions:
+  **approve**, **request coordination letters** (optional instructions), **return for completion**
+  (comment required) and **reject** (reason required).
 
-Not done yet: the applicant can *see* a "returned for completion" status and the reviewer's comment, but
-**editing and resubmitting a returned request, and the coordination letters, come in Milestone 4**.
-The Building Licence application, the mobile app and Camunda come later as well.
+Not in this milestone: the Building Licence application, the Expo mobile app and Camunda (each has its own
+milestone), and email/SMS notifications.
 
 ---
 
@@ -104,7 +107,7 @@ All use the password **`Modon@Dev1`** (development only — set in `appsettings.
 | Email | Role | Portal access |
 |---|---|---|
 | `investor@modon.local` | investor | ✅ |
-| `contractor@modon.local` | contractor | ✅ — can apply for the Excavation Works Permit (establishment CR `7012345678`) |
+| `contractor@modon.local` | contractor | ✅ — can apply for the Excavation Works Permit (establishment CR `7012345678`) and sees its tasks |
 | `consultant@modon.local` | consultant | ✅ |
 | `reviewer@modon.local` | modon_reviewer | ❌ partner portal · ✅ **admin portal** (review requests) |
 | `sadmin@modon.local` | FormCMS super admin | ❌ partner portal · ✅ admin portal (super admin has full data access in FormCMS) |
@@ -118,7 +121,8 @@ Roles cannot be self-assigned: new sign-ups get no Modon role, and only a FormCM
 3. Fill in some fields and press **حفظ كمسودة** (save as draft). You can leave and come back from **طلباتي**.
 4. Fill in every field marked `*`, and add all six attachments (one file each, max 20,480 KB;
    the work-location photo must be JPEG/JPG/PNG, the others JPEG/JPG/PNG/PDF).
-5. Press **تقديم الطلب** (submit). The request becomes **قيد التنفيذ** (in progress) and can no longer be edited.
+5. Press **تقديم الطلب** (submit). The request becomes **قيد التنفيذ** (in progress) and can no longer be
+   edited — unless Modon returns it for completion (step 5d).
 6. **طلباتي** lists your requests; open one to see its details, files and status history.
 
 The dropdown values other than the industrial cities are **placeholders** (the manual doesn't list them).
@@ -135,6 +139,30 @@ A FormCMS super admin can change them in the `modonLookup` entity without code c
 5. Choose a decision: **اعتماد** (approve, optional note), **إعادة لإكمال النواقص** (return — a comment is
    required) or **رفض** (reject — a reason is required). The decision, your account and the time are
    recorded in the history, and the applicant sees the new status and comment in **طلباتي**.
+   A fourth decision, **طلب خطابات التنسيق** (request coordination letters, optional instructions), asks the
+   contractor for the three coordination letters (step 5e).
+
+## 5d. Complete a returned request (partner portal)
+
+1. In the admin portal, open an in-progress request and choose **إعادة لإكمال النواقص** with a comment.
+2. Sign in to the partner portal as `contractor@modon.local` and open **المهام** (tasks). The request is listed
+   with its status **إكمال النواقص**, the reviewer's comment and the date.
+3. Press **إكمال النواقص وإعادة التقديم**. The original form opens with the reviewer's instructions on top.
+   Everything can be changed except the establishment (it is fixed once a request has been submitted).
+4. **حفظ التعديلات** saves your changes without resubmitting — the request stays in your tasks.
+5. **إعادة تقديم الطلب** checks every required field and all six attachments again, then sends the request back
+   to Modon as **قيد التنفيذ**. It keeps its number; the history shows the return and the resubmission.
+
+## 5e. Send coordination letters (partner portal)
+
+1. In the admin portal, open an in-progress request and choose **طلب خطابات التنسيق** (instructions optional).
+   The request becomes **بانتظار خطابات التنسيق**, and no other decision is possible until the letters arrive.
+2. As `contractor@modon.local`, open **المهام** → **رفع خطابات التنسيق**.
+3. Upload the three letters — Saudi Electricity Company, National Grid (الشركة الوطنية لنقل الكهرباء) and the
+   East electricity service office — one file each, max 20,480 KB, JPEG/JPG/PNG/PDF. Each file is saved as soon
+   as it is uploaded, so you can replace or remove it and come back later.
+4. **إرسال خطابات التنسيق** requires all three. The request returns to **قيد التنفيذ**, the letters are locked,
+   and the reviewer sees them under **خطابات التنسيق** in the admin portal.
 
 ## 6. Run the tests
 
@@ -154,13 +182,17 @@ npm run typecheck
 npm run build
 ```
 
+The backend tests run on SQLite. To check the same flows against PostgreSQL, start the backend normally
+(`dotnet run`) and follow steps 5b–5e by hand; the request history in the admin portal must show one row
+per status change (create, submit, return, resubmit, letters requested, letters sent, approve).
+
 ## How the pieces fit
 
 ```
 Partner portal :5173 ─┐
                       ├─/api──► Modon.Platform :5100 ──► PostgreSQL :5433
 Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entities, saved queries
-                                  └─ Modon:   personas, requests, attachments, review, seeding
+                                  └─ Modon:   personas, requests, attachments, tasks, review, seeding
                                               (own tables "modon_*", EF Core)
 ```
 
@@ -175,8 +207,10 @@ Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entit
 | `POST /api/modon/requests` | Modon | Start a service → creates a draft (`{ "serviceCode": "excavation-permit" }`) |
 | `GET /api/modon/requests` · `GET /api/modon/requests/{id}` | Modon | My requests · one request with files and history |
 | `PUT /api/modon/requests/{id}/excavation` | Modon | Save the draft form (format checks only) |
-| `POST /api/modon/requests/{id}/submit` | Modon | Submit (all required fields and attachments) |
-| `POST · DELETE · GET /api/modon/requests/{id}/attachments/{slot}` | Modon | Upload (multipart `file`) · remove · download |
+| `POST /api/modon/requests/{id}/submit` | Modon | Submit a draft, or resubmit a returned request (all required fields and attachments) |
+| `POST · DELETE · GET /api/modon/requests/{id}/attachments/{slot}` | Modon | Upload (multipart `file`) · remove · download — application documents and coordination letters |
+| `POST /api/modon/requests/{id}/coordination-letters/submit` | Modon | Send the three coordination letters → InProgress |
+| `GET /api/modon/tasks` | Modon | My task inbox: my requests returned for completion or awaiting coordination letters |
 | `GET /api/modon/review/summary` | Modon (reviewers) | Counts per status (drafts excluded) |
 | `GET /api/modon/review/requests?status=&service=&search=&page=&pageSize=` | Modon (reviewers) | Request queue |
 | `GET /api/modon/review/requests/{id}` · `…/{id}/history` | Modon (reviewers) | Full request · audit history (actor, action, comment, time) |
@@ -184,6 +218,7 @@ Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entit
 | `POST /api/modon/review/requests/{id}/approve` | Modon (reviewers) | `{ "comment": "optional" }` → Approved |
 | `POST /api/modon/review/requests/{id}/return` | Modon (reviewers) | `{ "comment": "required" }` → ReturnedForCompletion |
 | `POST /api/modon/review/requests/{id}/reject` | Modon (reviewers) | `{ "reason": "required" }` → Rejected |
+| `POST /api/modon/review/requests/{id}/request-coordination-letters` | Modon (reviewers) | `{ "comment": "optional" }` → AwaitingCoordinationLetters |
 
 Security rules enforced by the backend:
 
@@ -191,9 +226,16 @@ Security rules enforced by the backend:
 - Only contractors can apply for the excavation permit, and only for an establishment they are linked to.
 - Statuses change only through the workflow; every successful change writes exactly one history row
   (who, what, comment, when). Legal transitions today:
-  `Draft → InProgress` (applicant submits), `InProgress → Approved | Rejected | ReturnedForCompletion` (reviewer).
-  Anything else returns **409**. If two reviewers decide at the same moment, only the first decision is saved
-  (the second gets 409).
+  - applicant: `Draft → InProgress` (submit), `ReturnedForCompletion → InProgress` (resubmit),
+    `AwaitingCoordinationLetters → InProgress` (send letters);
+  - reviewer: `InProgress → Approved | Rejected | ReturnedForCompletion | AwaitingCoordinationLetters`.
+
+  Anything else returns **409**; Approved and Rejected are final. If two people act on the same request at the
+  same moment (two reviewers, or a double-clicked resubmit), only the first action is saved and the other gets 409.
+- The applicant may edit the form and its six attachments only in **Draft** or **ReturnedForCompletion**, and
+  upload coordination letters only in **AwaitingCoordinationLetters**; otherwise uploads, edits and submissions get 409.
+- After the first submission a request belongs to its establishment: the applicant must still be a member of it to
+  see it in the task inbox or act on it (**403** otherwise), and the establishment cannot be changed.
 - Review endpoints require the `modon_reviewer` role (or the FormCMS super admin `sa`). Investors,
   contractors, consultants and the FormCMS `admin` role get **403**; anonymous callers get **401**.
   Reviewers never see drafts.
@@ -235,9 +277,27 @@ It is applied automatically the next time the backend starts on PostgreSQL.
 
 - Any reviewer can see and decide on **every** submitted request; there is no split by industrial city yet.
 - The FormCMS super admin (`sa`) may also review; the FormCMS `admin` role may not.
-- Decisions are final within this milestone: there is no "undo", and decided requests cannot be decided again.
-  A returned request cannot be edited or resubmitted yet (Milestone 4).
+- Approve and reject are final: there is no "undo", and decided requests cannot be decided again.
+  (Returning a request for completion is not final — see Milestone 4.)
 - An approval note is optional; return comments and rejection reasons are required (max 2,000 characters).
 - A reviewer who also holds an applicant role is not blocked from reviewing their own request
   (no separation-of-duties rule was specified).
 - No email/SMS is sent on decisions yet.
+
+## Milestone 4 assumptions (to confirm with the instructor)
+
+- Tasks belong to the contractor who created the request, and only while they are still a member of the
+  request's establishment. Colleagues in the same establishment do not share requests or tasks (no delegation
+  rule was specified).
+- The establishment of a request cannot change after its first submission.
+- The original submission date is kept when a request is resubmitted; the resubmission time is in the history.
+- Saving changes to a returned request (or uploading a letter) is not a status change, so it is not a history row;
+  each attachment records who uploaded it and when.
+- Coordination letters can be requested only for an in-progress request, and again later if needed (the
+  contractor can then replace the earlier letters). While a request is returned or awaiting letters, reviewers
+  have no decision available until the contractor responds.
+- Approval does not require coordination letters first: the manual does not describe the final decision.
+- Instructions are optional when requesting letters (the three letters are fixed); a return still needs a comment.
+- The letter names follow the catalogue's required-documents text: الشركة السعودية للكهرباء،
+  الشركة الوطنية لنقل الكهرباء، مكتب خدمة كهرباء شرق.
+- No email/SMS is sent when a request is returned, when letters are requested, or when the contractor responds.

@@ -5,7 +5,7 @@ import type { RequestSummary } from "../api/types";
 import { StatusBadge } from "../components/StatusBadge";
 import { useI18n } from "../i18n/I18nContext";
 import { formatDate } from "../i18n/format";
-import { OPEN_SERVICES } from "../requests/serviceAvailability";
+import { actionPath } from "../requests/serviceAvailability";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; requests: RequestSummary[] };
 
@@ -55,7 +55,7 @@ export function MyRequestsPage() {
             </thead>
             <tbody>
               {load.requests.map((r) => {
-                const editable = r.status === "draft" && OPEN_SERVICES[r.serviceCode];
+                const next = actionPath(r.serviceCode, r.id, r.status);
                 return (
                   <tr key={r.id}>
                     <td>
@@ -68,8 +68,12 @@ export function MyRequestsPage() {
                     <td>{formatDate(r.createdAt)}</td>
                     <td>{formatDate(r.submittedAt)}</td>
                     <td>
-                      {editable ? (
-                        <Link to={OPEN_SERVICES[r.serviceCode].formPath(r.id)}>{t("continueEditing")}</Link>
+                      {next ? (
+                        <Link to={next}>
+                          {r.status === "draft"
+                            ? t("continueEditing")
+                            : t(r.status === "returnedForCompletion" ? "task.completeReturnedRequest" : "task.uploadCoordinationLetters")}
+                        </Link>
                       ) : (
                         <Link to={`/requests/${r.id}`}>{t("view")}</Link>
                       )}

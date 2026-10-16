@@ -50,9 +50,13 @@ public sealed record ReviewRequestDetail(
     AttachmentSlot[] AttachmentSlots,
     AttachmentInfo[] Attachments,
     ReviewHistoryItem[] History,
-    RequestAction[] AvailableDecisions);
+    RequestAction[] AvailableDecisions,
+    AttachmentSlot[] CoordinationLetterSlots);
 
-/// <summary>Body for approve (optional note) and return-for-completion (required comment).</summary>
+/// <summary>
+/// Body for approve (optional note), return-for-completion (required comment) and
+/// request-coordination-letters (optional instructions).
+/// </summary>
 public sealed record CommentBody(string? Comment);
 
 /// <summary>Body for reject (required reason).</summary>

@@ -107,7 +107,7 @@ a { color: var(--blue); }
 .status-inProgress { background: #e6f0f6; color: var(--blue); }
 .status-approved { background: #e8f3ed; color: var(--green-dark); }
 .status-rejected, .status-cancelled { background: var(--danger-bg); color: var(--danger); }
-.status-returnedForCompletion { background: #fff4e0; color: var(--warn); }
+.status-returnedForCompletion, .status-awaitingCoordinationLetters { background: #fff4e0; color: var(--warn); }
 .table-wrap { overflow-x: auto; padding: 0; margin-block-start: 1rem; }
 table.requests { width: 100%; border-collapse: collapse; }
 table.requests th, table.requests td { text-align: start; padding: 0.7rem 0.9rem; border-block-end: 1px solid var(--line); white-space: nowrap; }
@@ -127,3 +127,9 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
   .topbar { padding: 0.75rem 1rem; }
   .page { padding: 1rem; }
 }
+
+/* Milestone 4: tasks and coordination letters */
+.task-panel { border-inline-start: 4px solid #b26a00; background: #fffaf0; }
+.task-panel h2 { margin-top: 0; font-size: 1.05rem; }
+.task-instructions { white-space: pre-line; margin: 0.4rem 0 0.8rem; }
+.tasks td.instructions { max-width: 28rem; white-space: pre-line; }

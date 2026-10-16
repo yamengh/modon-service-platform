@@ -15,6 +15,7 @@ public static class ErrorCodes
     public const string InvalidPhone = "invalidPhone";
     public const string UnknownOption = "unknownOption";
     public const string NotYourEstablishment = "notYourEstablishment";
+    public const string CannotChange = "cannotChange";
     public const string MustBePositive = "mustBePositive";
     public const string TooLarge = "tooLarge";
     public const string EndDateMustBeAfterIssueDate = "endDateMustBeAfterIssueDate";

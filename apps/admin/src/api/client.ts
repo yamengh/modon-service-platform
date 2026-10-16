@@ -112,6 +112,11 @@ export const api = {
     return json(await request(`${reviewUrl(id)}/reject`, post({ reason })));
   },
 
+  /** Asks the applicant for the coordination letters (instructions are optional). */
+  async requestCoordinationLetters(id: number, comment?: string): Promise<ReviewRequestDetail> {
+    return json(await request(`${reviewUrl(id)}/request-coordination-letters`, post({ comment: comment || null })));
+  },
+
   /** Download link; the backend checks the reviewer role. */
   attachmentUrl(id: number, slot: string): string {
     return `${reviewUrl(id)}/attachments/${encodeURIComponent(slot)}`;

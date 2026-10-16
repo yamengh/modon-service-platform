@@ -17,6 +17,7 @@ export function Layout() {
         <nav className="topnav">
           <NavLink to="/services">{t("modonServices")}</NavLink>
           <NavLink to="/requests">{t("myRequests")}</NavLink>
+          <NavLink to="/tasks">{t("tasks")}</NavLink>
         </nav>
         <div className="topbar-end">
           <button type="button" className="link-btn" onClick={toggleLang}>

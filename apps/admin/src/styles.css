@@ -107,7 +107,7 @@ a { color: var(--blue); }
 .status-inProgress { background: #e6f0f6; color: var(--blue); }
 .status-approved { background: #e8f3ed; color: var(--green-dark); }
 .status-rejected, .status-cancelled { background: var(--danger-bg); color: var(--danger); }
-.status-returnedForCompletion { background: #fff4e0; color: var(--warn); }
+.status-returnedForCompletion, .status-awaitingCoordinationLetters { background: #fff4e0; color: var(--warn); }
 .table-wrap { overflow-x: auto; padding: 0; margin-block-start: 1rem; }
 table.requests { width: 100%; border-collapse: collapse; }
 table.requests th, table.requests td { text-align: start; padding: 0.7rem 0.9rem; border-block-end: 1px solid var(--line); white-space: nowrap; }
@@ -139,7 +139,7 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
 .stat-label { color: var(--muted); font-weight: 600; }
 .stat.total { border-block-start-color: var(--green-dark); }
 .status-edge-inProgress { border-block-start-color: var(--blue); }
-.status-edge-returnedForCompletion { border-block-start-color: #b26a00; }
+.status-edge-returnedForCompletion, .status-edge-awaitingCoordinationLetters { border-block-start-color: #b26a00; }
 .status-edge-approved { border-block-start-color: var(--green); }
 .status-edge-rejected, .status-edge-cancelled { border-block-start-color: var(--danger); }
 .filters { display: flex; flex-wrap: wrap; gap: 0 1rem; align-items: flex-end; margin-block-start: 1rem; }

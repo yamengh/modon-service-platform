@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { Decision, ExcavationData, LookupCategory, ReviewRequestDetail } from "../api/types";
+import type { AttachmentSlot, Decision, ExcavationData, LookupCategory, ReviewRequestDetail } from "../api/types";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { useI18n } from "../i18n/I18nContext";
@@ -80,6 +80,32 @@ export function ReviewRequestPage() {
     ["sectionProjectManager", ["projectManagerName", "projectManagerPhone", "projectManagerEmail", "supervisingEntity"]],
   ];
 
+  // Coordination letters only appear once the applicant has uploaded at least one.
+  const hasAnyFile = (slots: AttachmentSlot[]) => slots.some((s) => r.attachments.some((a) => a.slotCode === s.code));
+
+  const documentList = (slots: AttachmentSlot[]) => (
+    <ul className="docs">
+      {slots.map((slot) => {
+        const file = r.attachments.find((a) => a.slotCode === slot.code);
+        return (
+          <li key={slot.code}>
+            <span className="doc-label">{pick(slot, "label")}</span>
+            {file ? (
+              <>
+                <a href={api.attachmentUrl(r.id, slot.code)} download>
+                  {file.fileName}
+                </a>
+                <span className="meta"> ({formatSize(file.sizeBytes)})</span>
+              </>
+            ) : (
+              <span className="meta">{t("noFile")}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
   const onDecided = (updated: ReviewRequestDetail, decision: Decision) => {
     setLoad({ status: "ready", request: updated });
     setNotice({ kind: "success", key: `done.${decision}` });
@@ -147,27 +173,15 @@ export function ReviewRequestPage() {
 
           <div className="card read-section">
             <h2>{t("sectionAttachments")}</h2>
-            <ul className="docs">
-              {r.attachmentSlots.map((slot) => {
-                const file = r.attachments.find((a) => a.slotCode === slot.code);
-                return (
-                  <li key={slot.code}>
-                    <span className="doc-label">{pick(slot, "label")}</span>
-                    {file ? (
-                      <>
-                        <a href={api.attachmentUrl(r.id, slot.code)} download>
-                          {file.fileName}
-                        </a>
-                        <span className="meta"> ({formatSize(file.sizeBytes)})</span>
-                      </>
-                    ) : (
-                      <span className="meta">{t("noFile")}</span>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {documentList(r.attachmentSlots)}
           </div>
+
+          {hasAnyFile(r.coordinationLetterSlots) && (
+            <div className="card read-section">
+              <h2>{t("coordinationLetters")}</h2>
+              {documentList(r.coordinationLetterSlots)}
+            </div>
+          )}
         </section>
 
         <aside className="side">

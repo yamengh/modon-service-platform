@@ -9,10 +9,25 @@ export interface Me {
   canReview: boolean;
 }
 
-export type RequestStatus = "draft" | "inProgress" | "returnedForCompletion" | "approved" | "rejected" | "cancelled";
+export type RequestStatus =
+  | "draft"
+  | "inProgress"
+  | "returnedForCompletion"
+  | "awaitingCoordinationLetters"
+  | "approved"
+  | "rejected"
+  | "cancelled";
 export type ReviewStatus = Exclude<RequestStatus, "draft">;
-export type RequestAction = "create" | "submit" | "approve" | "reject" | "returnForCompletion";
-export type Decision = "approve" | "returnForCompletion" | "reject";
+export type RequestAction =
+  | "create"
+  | "submit"
+  | "approve"
+  | "reject"
+  | "returnForCompletion"
+  | "resubmit"
+  | "requestCoordinationLetters"
+  | "submitCoordinationLetters";
+export type Decision = "approve" | "requestCoordinationLetters" | "returnForCompletion" | "reject";
 
 export interface ApplicantInfo {
   userId: string;
@@ -120,6 +135,8 @@ export interface ReviewRequestDetail {
   attachments: AttachmentInfo[];
   history: ReviewHistoryItem[];
   availableDecisions: Decision[];
+  /** Coordination letters the applicant uploads when asked (shown once uploaded). */
+  coordinationLetterSlots: AttachmentSlot[];
 }
 
 export interface QueueFilters {

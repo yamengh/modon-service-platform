@@ -75,7 +75,8 @@ public class ReviewTests(ModonAppFactory factory)
         Assert.Equal("open-trench", detail.Excavation.ExcavationMethodCode);
         Assert.Equal(new DateOnly(2026, 11, 30), detail.Excavation.EndDate);
         Assert.Equal(ExcavationSlots, detail.Attachments.Select(a => a.SlotCode));
-        Assert.Equal([RequestAction.Approve, RequestAction.ReturnForCompletion, RequestAction.Reject], detail.AvailableDecisions);
+        Assert.Equal([RequestAction.Approve, RequestAction.RequestCoordinationLetters, RequestAction.ReturnForCompletion, RequestAction.Reject],
+            detail.AvailableDecisions);
         Assert.Collection(detail.History,
             h => Assert.Equal((RequestAction.Create, email, true), (h.Action, h.ActorEmail, h.ActorIsApplicant)),
             h => Assert.Equal((RequestAction.Submit, email, true), (h.Action, h.ActorEmail, h.ActorIsApplicant)));
@@ -384,6 +385,6 @@ public class ReviewTests(ModonAppFactory factory)
         var json = await res.Content.ReadFromJsonAsync<JsonElement>();
 
         var keys = json.GetProperty("byStatus").EnumerateObject().Select(p => p.Name).ToArray();
-        Assert.Equal(["inProgress", "returnedForCompletion", "approved", "rejected", "cancelled"], keys);
+        Assert.Equal(["inProgress", "returnedForCompletion", "awaitingCoordinationLetters", "approved", "rejected", "cancelled"], keys);
     }
 }

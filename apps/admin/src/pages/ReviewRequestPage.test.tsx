@@ -55,6 +55,43 @@ describe("Request details", () => {
     expect(screen.getByText("لا توجد قرارات متاحة لهذه الحالة.")).toBeInTheDocument();
   });
 
+  it("shows the uploaded coordination letters and the resubmission history", async () => {
+    const base = reviewDetail();
+    await open(reviewDetail({
+      attachments: [...base.attachments, {
+        slotCode: "nationalGridCoordinationLetter", fileName: "grid.pdf", contentType: "application/pdf", sizeBytes: 2048,
+        uploadedAt: "2026-10-17T08:00:00Z",
+      }],
+      history: [
+        ...base.history,
+        { fromStatus: "inProgress", toStatus: "returnedForCompletion", action: "returnForCompletion", occurredAt: "2026-10-16T08:00:00Z",
+          comment: "صحح الموقع", actorUserId: "r1", actorEmail: "reviewer@modon.local", actorIsApplicant: false },
+        { fromStatus: "returnedForCompletion", toStatus: "inProgress", action: "resubmit", occurredAt: "2026-10-16T10:00:00Z",
+          comment: null, actorUserId: "c1", actorEmail: "contractor@modon.local", actorIsApplicant: true },
+        { fromStatus: "inProgress", toStatus: "awaitingCoordinationLetters", action: "requestCoordinationLetters", occurredAt: "2026-10-16T12:00:00Z",
+          comment: null, actorUserId: "r1", actorEmail: "reviewer@modon.local", actorIsApplicant: false },
+        { fromStatus: "awaitingCoordinationLetters", toStatus: "inProgress", action: "submitCoordinationLetters", occurredAt: "2026-10-17T09:00:00Z",
+          comment: null, actorUserId: "c1", actorEmail: "contractor@modon.local", actorIsApplicant: true },
+      ],
+    }));
+
+    const letters = screen.getByRole("heading", { name: "خطابات التنسيق" }).parentElement!;
+    expect(within(letters).getByRole("link", { name: "grid.pdf" }))
+      .toHaveAttribute("href", "/api/modon/review/requests/11/attachments/nationalGridCoordinationLetter");
+    expect(within(letters).getAllByText("لم يرفق")).toHaveLength(2);
+    const history = within(historyBox());
+    expect(history.getByText("إعادة التقديم بعد الإكمال")).toBeInTheDocument();
+    expect(history.getByText("طلب خطابات التنسيق")).toBeInTheDocument();
+    expect(history.getByText("إرسال خطابات التنسيق")).toBeInTheDocument();
+    expect(history.getAllByText("بانتظار خطابات التنسيق")).toHaveLength(1);
+  });
+
+  it("hides the coordination letters section until a letter is uploaded", async () => {
+    await open();
+
+    expect(screen.queryByRole("heading", { name: "خطابات التنسيق" })).not.toBeInTheDocument();
+  });
+
   it("shows not-found for drafts and unknown requests", async () => {
     vi.mocked(api.getRequest).mockRejectedValue(new ApiError(404, "Not Found"));
 
@@ -86,7 +123,7 @@ describe("Review decisions", () => {
     await userEvent.click(screen.getByRole("button", { name: "تأكيد القرار" }));
 
     expect(screen.getByText("هذا الحقل مطلوب")).toBeInTheDocument();
-    expect(screen.getByText(/إمكانية التعديل وإعادة التقديم ستتوفر في المرحلة القادمة/)).toBeInTheDocument();
+    expect(screen.getByText(/يظهر الطلب في مهام مقدم الطلب مع ملاحظتك، فيعدّله ويعيد تقديمه/)).toBeInTheDocument();
     expect(api.returnForCompletion).not.toHaveBeenCalled();
   });
 
@@ -138,6 +175,33 @@ describe("Review decisions", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("تغيرت حالة الطلب قبل حفظ قرارك");
     expect(await screen.findByText("لا توجد قرارات متاحة لهذه الحالة.")).toBeInTheDocument();
     expect(api.getRequest).toHaveBeenCalledTimes(2);
+  });
+
+  it("requests coordination letters with optional instructions", async () => {
+    await open(reviewDetail({ availableDecisions: ["approve", "requestCoordinationLetters", "returnForCompletion", "reject"] }));
+    vi.mocked(api.requestCoordinationLetters).mockResolvedValue(
+      reviewDetail({ status: "awaitingCoordinationLetters", availableDecisions: [] }),
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "طلب خطابات التنسيق" }));
+    expect(screen.getByText(/لرفع الخطابات الثلاثة/)).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText(/تعليمات لمقدم الطلب/), "  يرجى الرفع خلال أسبوع  ");
+    await userEvent.click(screen.getByRole("button", { name: "تأكيد القرار" }));
+
+    expect(api.requestCoordinationLetters).toHaveBeenCalledWith(11, "يرجى الرفع خلال أسبوع");
+    expect(await screen.findByRole("status")).toHaveTextContent("تم طلب خطابات التنسيق من مقدم الطلب.");
+    expect(screen.getAllByText("بانتظار خطابات التنسيق").length).toBeGreaterThan(0);
+    expect(screen.getByText("لا توجد قرارات متاحة لهذه الحالة.")).toBeInTheDocument();
+  });
+
+  it("requests coordination letters without instructions", async () => {
+    await open(reviewDetail({ availableDecisions: ["approve", "requestCoordinationLetters", "returnForCompletion", "reject"] }));
+    vi.mocked(api.requestCoordinationLetters).mockResolvedValue(reviewDetail({ status: "awaitingCoordinationLetters", availableDecisions: [] }));
+
+    await userEvent.click(screen.getByRole("button", { name: "طلب خطابات التنسيق" }));
+    await userEvent.click(screen.getByRole("button", { name: "تأكيد القرار" }));
+
+    expect(api.requestCoordinationLetters).toHaveBeenCalledWith(11, undefined);
   });
 
   it("shows the server's validation error", async () => {

@@ -10,7 +10,8 @@ namespace Modon.Platform.Requests;
 /// <summary>
 /// Request use cases. Every method takes the signed-in user and enforces:
 /// ownership (other users' requests look like 404), the service's applicant roles (403),
-/// and the workflow's editable states (409). Status changes go only through <see cref="RequestTransitions"/>,
+/// membership of the request's establishment once it was submitted (403), and the workflow's
+/// editable states (409). Status changes go only through <see cref="RequestTransitions"/>,
 /// which always writes exactly one history row.
 /// </summary>
 public sealed class RequestService(
@@ -73,6 +74,35 @@ public sealed class RequestService(
             }));
     }
 
+    /// <summary>
+    /// The applicant's task inbox: their own requests that Modon returned or asked letters for, limited to
+    /// services they may act on and establishments they still belong to (the same rules the actions enforce).
+    /// </summary>
+    public async Task<IResult> ListTasksAsync(UserAccess user, CancellationToken ct)
+    {
+        var taskStatuses = Enum.GetValues<RequestStatus>().Where(workflow.IsApplicantTask).ToArray();
+        var requests = await db.ServiceRequests.AsNoTracking()
+            .Include(r => r.History)
+            .Where(r => r.ApplicantUserId == user.Id && taskStatuses.Contains(r.Status))
+            .Where(r => r.EstablishmentId == null || db.EstablishmentMembers
+                .Any(m => m.EstablishmentId == r.EstablishmentId && m.UserId == user.Id))
+            .AsSplitQuery()
+            .ToListAsync(ct);
+        var names = await serviceNames.AllAsync(ct);
+
+        return Results.Ok(requests
+            .Where(r => ServiceApplications.Find(r.ServiceCode) is { } service && HasApplicantRole(user, service))
+            .Select(r =>
+            {
+                var task = r.CurrentTask(workflow)!;
+                var (ar, en) = names.GetValueOrDefault(r.ServiceCode, (r.ServiceCode, r.ServiceCode));
+                return new TaskItem(r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status,
+                    task.Kind, task.Instructions, task.AssignedAt, r.SubmittedAt);
+            })
+            .OrderByDescending(t => t.AssignedAt).ThenByDescending(t => t.RequestId)
+            .ToArray());
+    }
+
     public async Task<IResult> GetAsync(UserAccess user, long id, CancellationToken ct)
     {
         var request = await LoadOwnedAsync(user, id, ct);
@@ -81,52 +111,71 @@ public sealed class RequestService(
 
     public async Task<IResult> SaveExcavationAsync(UserAccess user, long id, ExcavationDto body, CancellationToken ct)
     {
-        var (request, service, denied) = await LoadForChangeAsync(user, id, ct);
+        var (request, _, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
+        if (!workflow.IsEditableByApplicant(request!.Status)) return Problem(409, ProblemCodes.RequestNotEditable);
 
         var dto = body.Normalized();
         var errors = await validator.ValidateAsync(dto, ValidationMode.Draft, user.Id, [], ct);
+        AddLockedFieldErrors(request, dto, errors);
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        dto.ApplyTo(request!);
-        request!.UpdatedAt = Now();
-        await db.SaveChangesAsync(ct);
+        dto.ApplyTo(request);
+        request.UpdatedAt = Now();
+        return await SaveOrConflictAsync(ct) ?? Results.Ok(await ToDetailAsync(request, ct));
+    }
+
+    /// <summary>Submits a draft, or resubmits a returned request (same request, same number).</summary>
+    public async Task<IResult> SubmitAsync(UserAccess user, long id, CancellationToken ct)
+    {
+        var (request, _, denied) = await LoadActionableAsync(user, id, ct);
+        if (denied is not null) return denied;
+        if (!workflow.IsEditableByApplicant(request!.Status) || workflow.ApplicantSubmitAction(request.Status) is not { } action)
+            return Problem(409, ProblemCodes.RequestNotEditable);
+
+        var dto = ExcavationDto.From(request).Normalized();
+        var errors = await validator.ValidateAsync(dto, ValidationMode.Submit, user.Id,
+            request.Attachments.Select(a => a.SlotCode), ct);
+        AddLockedFieldErrors(request, dto, errors);
+        if (errors.Count > 0) return Results.ValidationProblem(errors);
+
+        await transitions.ApplyAsync(request, action, user.Id, comment: null, ct);
+        request.SubmittedAt ??= request.UpdatedAt; // the first submission date is kept on resubmission
+        if (await SaveOrConflictAsync(ct, ProblemCodes.RequestNotEditable) is { } conflict) return conflict;
+
+        logger.LogInformation("Request {Number}: {Action} by {User}", request.RequestNumber, action, user.Id);
         return Results.Ok(await ToDetailAsync(request, ct));
     }
 
-    public async Task<IResult> SubmitAsync(UserAccess user, long id, CancellationToken ct)
+    /// <summary>Sends the requested coordination letters; all of them must be uploaded.</summary>
+    public async Task<IResult> SubmitCoordinationLettersAsync(UserAccess user, long id, CancellationToken ct)
     {
-        var (request, _, denied) = await LoadForChangeAsync(user, id, ct);
+        var (request, service, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
+        if (!workflow.AcceptsCoordinationLetters(request!.Status)) return Problem(409, ProblemCodes.RequestNotEditable);
 
-        var dto = ExcavationDto.From(request!).Normalized();
-        var errors = await validator.ValidateAsync(dto, ValidationMode.Submit, user.Id,
-            request!.Attachments.Select(a => a.SlotCode), ct);
+        var uploaded = request.Attachments.Select(a => a.SlotCode).ToHashSet();
+        var errors = service!.CoordinationSlots
+            .Where(s => s.RequiredOnSubmit && !uploaded.Contains(s.Code))
+            .ToDictionary(s => $"attachments.{s.Code}", _ => new[] { ErrorCodes.Required });
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        await transitions.ApplyAsync(request, RequestAction.Submit, user.Id, comment: null, ct);
-        request.SubmittedAt = request.UpdatedAt;
-        try
-        {
-            await db.SaveChangesAsync(ct);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            return Problem(409, ProblemCodes.RequestNotEditable); // submitted twice at the same moment
-        }
-        logger.LogInformation("Request {Number} submitted by {User}", request.RequestNumber, user.Id);
+        await transitions.ApplyAsync(request, RequestAction.SubmitCoordinationLetters, user.Id, comment: null, ct);
+        if (await SaveOrConflictAsync(ct, ProblemCodes.RequestNotEditable) is { } conflict) return conflict;
+
+        logger.LogInformation("Request {Number}: coordination letters sent by {User}", request.RequestNumber, user.Id);
         return Results.Ok(await ToDetailAsync(request, ct));
     }
 
     public async Task<IResult> UploadAsync(UserAccess user, long id, string slotCode, IFormFile? file, CancellationToken ct)
     {
-        var (request, service, denied) = await LoadForChangeAsync(user, id, ct);
+        var (request, service, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
 
-        var slot = service!.Slots.FirstOrDefault(s => s.Code == slotCode);
-        if (slot is null) return Problem(404, ProblemCodes.UnknownSlot);
+        var (slot, slotDenied) = ChangeableSlot(request!, service!, slotCode);
+        if (slotDenied is not null) return slotDenied;
 
-        var field = $"attachments.{slot.Code}";
+        var field = $"attachments.{slot!.Code}";
         if (file is null) return Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [ErrorCodes.Required] });
 
         var (accepted, error) = await uploadValidator.ValidateAsync(file, slot, ct);
@@ -154,14 +203,20 @@ public sealed class RequestService(
         attachment.UploadedAt = Now();
         request.UpdatedAt = attachment.UploadedAt;
 
+        IResult? conflict;
         try
         {
-            await db.SaveChangesAsync(ct);
+            conflict = await SaveOrConflictAsync(ct);
         }
         catch
         {
             documents.Delete(key);
             throw;
+        }
+        if (conflict is not null)
+        {
+            documents.Delete(key);
+            return conflict;
         }
         if (replacedKey is not null) documents.Delete(replacedKey);
 
@@ -170,15 +225,18 @@ public sealed class RequestService(
 
     public async Task<IResult> DeleteAttachmentAsync(UserAccess user, long id, string slotCode, CancellationToken ct)
     {
-        var (request, _, denied) = await LoadForChangeAsync(user, id, ct);
+        var (request, service, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
+
+        var (_, slotDenied) = ChangeableSlot(request!, service!, slotCode);
+        if (slotDenied is not null) return slotDenied;
 
         var attachment = request!.Attachments.FirstOrDefault(a => a.SlotCode == slotCode);
         if (attachment is null) return Results.NotFound();
 
         db.RequestAttachments.Remove(attachment);
         request.UpdatedAt = Now();
-        await db.SaveChangesAsync(ct);
+        if (await SaveOrConflictAsync(ct) is { } conflict) return conflict;
         documents.Delete(attachment.StorageKey);
         return Results.NoContent();
     }
@@ -211,8 +269,12 @@ public sealed class RequestService(
             .AsSplitQuery()
             .FirstOrDefaultAsync(r => r.Id == id && r.ApplicantUserId == user.Id, ct);
 
-    /// <summary>Loads a request the user owns, may act on, and that is still editable.</summary>
-    private async Task<(ServiceRequest? Request, ServiceApplication? Service, IResult? Denied)> LoadForChangeAsync(
+    /// <summary>
+    /// Loads a request the user owns and may act on. Once a request has been submitted it belongs to its
+    /// establishment, so the user must still be a member of it (organisation-based authorization).
+    /// Each caller then checks that its action is allowed in the request's status.
+    /// </summary>
+    private async Task<(ServiceRequest? Request, ServiceApplication? Service, IResult? Denied)> LoadActionableAsync(
         UserAccess user, long id, CancellationToken ct)
     {
         var request = await LoadOwnedAsync(user, id, ct);
@@ -221,24 +283,76 @@ public sealed class RequestService(
         var service = ServiceApplications.Find(request.ServiceCode);
         if (service is null) return (null, null, Problem(409, ProblemCodes.RequestNotEditable));
         if (!HasApplicantRole(user, service)) return (null, null, Problem(403, ProblemCodes.RoleNotAllowed));
-        if (!workflow.IsEditableByApplicant(request.Status)) return (null, null, Problem(409, ProblemCodes.RequestNotEditable));
+
+        if (request.SubmittedAt is not null && request.EstablishmentId is { } establishmentId
+            && !await db.EstablishmentMembers.AnyAsync(m => m.EstablishmentId == establishmentId && m.UserId == user.Id, ct))
+            return (null, null, Problem(403, ProblemCodes.NotYourEstablishment));
 
         return (request, service, null);
+    }
+
+    /// <summary>
+    /// The slot being uploaded to or cleared, if it may change now: application attachments while the
+    /// form is editable, coordination letters while Modon is waiting for them.
+    /// </summary>
+    private (AttachmentSlot? Slot, IResult? Denied) ChangeableSlot(ServiceRequest request, ServiceApplication service, string slotCode)
+    {
+        if (service.Slots.FirstOrDefault(s => s.Code == slotCode) is { } applicationSlot)
+            return workflow.IsEditableByApplicant(request.Status)
+                ? (applicationSlot, null)
+                : (null, Problem(409, ProblemCodes.RequestNotEditable));
+        if (service.CoordinationSlots.FirstOrDefault(s => s.Code == slotCode) is { } letterSlot)
+            return workflow.AcceptsCoordinationLetters(request.Status)
+                ? (letterSlot, null)
+                : (null, Problem(409, ProblemCodes.RequestNotEditable));
+        return (null, Problem(404, ProblemCodes.UnknownSlot));
+    }
+
+    /// <summary>
+    /// After the first submission the request belongs to its establishment, so a returned request cannot be
+    /// moved to another establishment while it is being completed.
+    /// </summary>
+    private static void AddLockedFieldErrors(ServiceRequest request, ExcavationDto dto, Dictionary<string, string[]> errors)
+    {
+        if (request.SubmittedAt is not null && dto.EstablishmentId != request.EstablishmentId)
+            errors.TryAdd("establishmentId", [ErrorCodes.CannotChange]);
+    }
+
+    /// <summary>
+    /// Saves; returns 409 when someone else changed the request's status in the meantime
+    /// (<see cref="ServiceRequest.Status"/> is a concurrency token).
+    /// </summary>
+    private async Task<IResult?> SaveOrConflictAsync(CancellationToken ct, string code = ProblemCodes.RequestChanged)
+    {
+        try
+        {
+            await db.SaveChangesAsync(ct);
+            return null;
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(409, code);
+        }
     }
 
     private async Task<RequestDetail> ToDetailAsync(ServiceRequest r, CancellationToken ct)
     {
         var (ar, en) = await serviceNames.NameOfAsync(r.ServiceCode, ct);
-        var slots = ServiceApplications.Find(r.ServiceCode)?.Slots ?? [];
+        var service = ServiceApplications.Find(r.ServiceCode);
+        var slots = service?.Slots ?? [];
+        var letterSlots = service?.CoordinationSlots ?? [];
         return new RequestDetail(
             r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status,
             workflow.IsEditableByApplicant(r.Status),
             r.CreatedAt, r.UpdatedAt, r.SubmittedAt,
             ExcavationDto.From(r),
             slots,
-            r.Attachments.InSlotOrder(slots),
+            r.Attachments.InSlotOrder([.. slots, .. letterSlots]),
             r.History.OrderBy(h => h.OccurredAt).ThenBy(h => h.Id)
-                .Select(h => new HistoryItem(h.FromStatus, h.ToStatus, h.Action, h.OccurredAt, h.Comment)).ToArray());
+                .Select(h => new HistoryItem(h.FromStatus, h.ToStatus, h.Action, h.OccurredAt, h.Comment)).ToArray(),
+            letterSlots,
+            workflow.AcceptsCoordinationLetters(r.Status) && letterSlots.Length > 0,
+            r.CurrentTask(workflow));
     }
 
     private static bool HasApplicantRole(UserAccess user, ServiceApplication service)

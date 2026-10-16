@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import type { AttachmentInfo, ExcavationData, FieldErrors, RequestDetail } from "../api/types";
 import { AttachmentSlotField } from "../components/AttachmentSlotField";
 import { StatusBadge } from "../components/StatusBadge";
+import { TaskPanel } from "../components/TaskPanel";
 import { useI18n } from "../i18n/I18nContext";
 import { errorKey, fill } from "../i18n/format";
 import type { MessageKey } from "../i18n/messages";
@@ -68,6 +69,10 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
   const [errors, setErrors] = useState<FieldErrors>({});
   const [banner, setBanner] = useState<Banner>(null);
   const [busy, setBusy] = useState<"save" | "submit" | null>(null);
+  // A request Modon returned for completion: same form, but it is resubmitted, and the establishment
+  // it was submitted for cannot change (the backend enforces both).
+  const returned = request.status === "returnedForCompletion";
+  const establishmentLocked = request.submittedAt !== null;
 
   const set = (field: keyof ExcavationData) => (value: string) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -93,7 +98,7 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
     try {
       await api.saveExcavation(request.id, toData(form));
       setErrors({});
-      setBanner({ kind: "success", text: t("draftSaved") });
+      setBanner({ kind: "success", text: t(returned ? "changesSaved" : "draftSaved") });
     } catch (e) {
       handleApiError(e, "saveFailed");
     } finally {
@@ -103,16 +108,17 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    const failedKey = returned ? "resubmitFailed" : "submitFailed";
     const found = validateExcavation(form, "submit", request.attachmentSlots, attachments);
-    if (Object.keys(found).length) return showErrors(found, "submitFailed");
+    if (Object.keys(found).length) return showErrors(found, failedKey);
     setBusy("submit");
     try {
       // Save the latest edits first, then submit; the backend validates both steps again.
       await api.saveExcavation(request.id, toData(form));
       await api.submitRequest(request.id);
-      navigate(`/requests/${request.id}`, { state: { submitted: true } });
+      navigate(`/requests/${request.id}`, { state: returned ? { resubmitted: true } : { submitted: true } });
     } catch (err) {
-      handleApiError(err, "submitFailed");
+      handleApiError(err, failedKey);
       setBusy(null);
     }
   }
@@ -177,6 +183,11 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
         </div>
         <StatusBadge status={request.status} />
       </div>
+      {request.currentTask && (
+        <TaskPanel task={request.currentTask}>
+          <p className="hint">{t("returnedHint")}</p>
+        </TaskPanel>
+      )}
       <p className="muted">{t("requiredHint")}</p>
 
       {banner && (
@@ -191,7 +202,12 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
           <div className="grid-2">
             <label className="field">
               {label("establishmentId")}
-              <select value={form.establishmentId} onChange={(e) => set("establishmentId")(e.target.value)} {...a11y("establishmentId")}>
+              <select
+                value={form.establishmentId}
+                onChange={(e) => set("establishmentId")(e.target.value)}
+                disabled={establishmentLocked}
+                {...a11y("establishmentId")}
+              >
                 <option value="">{t("choose")}</option>
                 {options.establishments.map((est) => (
                   <option key={est.id} value={String(est.id)}>
@@ -200,6 +216,7 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
                 ))}
               </select>
               {options.establishments.length === 0 && <small className="hint warn">{t("noEstablishments")}</small>}
+              {establishmentLocked && <small className="hint">{t("establishmentLocked")}</small>}
               {fieldError("establishmentId")}
             </label>
             {select("requestTypeCode")}
@@ -259,10 +276,10 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
 
         <div className="form-actions">
           <button type="submit" className="btn primary" disabled={busy !== null}>
-            {busy === "submit" ? t("submitting") : t("submitRequest")}
+            {busy === "submit" ? t(returned ? "resubmitting" : "submitting") : t(returned ? "resubmitRequest" : "submitRequest")}
           </button>
           <button type="button" className="btn secondary" onClick={() => void saveDraft()} disabled={busy !== null}>
-            {busy === "save" ? t("savingDraft") : t("saveDraft")}
+            {busy === "save" ? t("savingDraft") : t(returned ? "saveChanges" : "saveDraft")}
           </button>
         </div>
       </form>

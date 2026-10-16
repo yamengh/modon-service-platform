@@ -36,6 +36,10 @@ public static class ReviewEndpoints
         review.MapPost("/requests/{id:long}/return", (ReviewService s, HttpContext ctx, long id, CommentBody? body, CancellationToken ct)
             => s.ReturnAsync(Reviewer(ctx), id, body ?? new CommentBody(null), ct));
 
+        review.MapPost("/requests/{id:long}/request-coordination-letters",
+            (ReviewService s, HttpContext ctx, long id, CommentBody? body, CancellationToken ct)
+                => s.RequestCoordinationLettersAsync(Reviewer(ctx), id, body ?? new CommentBody(null), ct));
+
         review.MapPost("/requests/{id:long}/reject", (ReviewService s, HttpContext ctx, long id, RejectBody? body, CancellationToken ct)
             => s.RejectAsync(Reviewer(ctx), id, body ?? new RejectBody(null), ct));
     }

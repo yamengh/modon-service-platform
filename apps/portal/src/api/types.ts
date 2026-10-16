@@ -47,8 +47,23 @@ export interface Establishment {
   nameEn: string;
 }
 
-export type RequestStatus = "draft" | "inProgress" | "returnedForCompletion" | "approved" | "rejected" | "cancelled";
-export type RequestAction = "create" | "submit" | "approve" | "reject" | "returnForCompletion";
+export type RequestStatus =
+  | "draft"
+  | "inProgress"
+  | "returnedForCompletion"
+  | "awaitingCoordinationLetters"
+  | "approved"
+  | "rejected"
+  | "cancelled";
+export type RequestAction =
+  | "create"
+  | "submit"
+  | "approve"
+  | "reject"
+  | "returnForCompletion"
+  | "resubmit"
+  | "requestCoordinationLetters"
+  | "submitCoordinationLetters";
 
 /** Excavation permit form data. Dates are "yyyy-MM-dd"; every field may be null in a draft. */
 export interface ExcavationData {
@@ -110,11 +125,41 @@ export interface RequestSummary {
 }
 
 export interface RequestDetail extends RequestSummary {
+  /** The application form and its attachments can be edited (draft, or returned for completion). */
   canEdit: boolean;
   excavation: ExcavationData;
   attachmentSlots: AttachmentSlot[];
+  /** Application attachments and, once uploaded, coordination letters. */
   attachments: AttachmentInfo[];
   history: HistoryItem[];
+  /** Coordination letters Modon may request for this service (empty when the service has none). */
+  coordinationLetterSlots: AttachmentSlot[];
+  /** Modon is waiting for the coordination letters: they can be uploaded and sent now. */
+  canUploadCoordinationLetters: boolean;
+  /** What Modon is waiting for the applicant to do, with the reviewer's instructions. */
+  currentTask: ApplicantTask | null;
+}
+
+export type ApplicantTaskKind = "completeReturnedRequest" | "uploadCoordinationLetters";
+
+export interface ApplicantTask {
+  kind: ApplicantTaskKind;
+  instructions: string | null;
+  assignedAt: string;
+}
+
+/** A row of GET /api/modon/tasks: a request waiting for the signed-in user. */
+export interface TaskItem {
+  requestId: number;
+  requestNumber: string;
+  serviceCode: string;
+  serviceNameAr: string;
+  serviceNameEn: string;
+  status: RequestStatus;
+  kind: ApplicantTaskKind;
+  instructions: string | null;
+  assignedAt: string;
+  submittedAt: string | null;
 }
 
 /** Field → error codes, as returned in a 400 ValidationProblem. */

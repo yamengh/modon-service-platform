@@ -7,7 +7,19 @@ import { errorKey } from "../i18n/format";
 const MAX_LENGTH = 2000;
 
 /** Return needs a comment and reject needs a reason (the backend enforces the same rule). */
-const TEXT_REQUIRED: Record<Decision, boolean> = { approve: false, returnForCompletion: true, reject: true };
+const TEXT_REQUIRED: Record<Decision, boolean> = {
+  approve: false,
+  requestCoordinationLetters: false,
+  returnForCompletion: true,
+  reject: true,
+};
+
+const SEND: Record<Decision, (id: number, text: string) => Promise<ReviewRequestDetail>> = {
+  approve: (id, text) => api.approve(id, text || undefined),
+  requestCoordinationLetters: (id, text) => api.requestCoordinationLetters(id, text || undefined),
+  returnForCompletion: (id, text) => api.returnForCompletion(id, text),
+  reject: (id, text) => api.reject(id, text),
+};
 
 interface Props {
   request: ReviewRequestDetail;
@@ -44,12 +56,7 @@ export function DecisionPanel({ request, onDecided, onConflict }: Props) {
     setBusy(true);
     setFailure(null);
     try {
-      const updated =
-        decision === "approve"
-          ? await api.approve(request.id, value || undefined)
-          : decision === "reject"
-            ? await api.reject(request.id, value)
-            : await api.returnForCompletion(request.id, value);
+      const updated = await SEND[decision](request.id, value);
       setDecision(null);
       onDecided(updated, decision);
     } catch (err) {
@@ -109,6 +116,7 @@ export function DecisionPanel({ request, onDecided, onConflict }: Props) {
             )}
           </label>
           {decision === "returnForCompletion" && <p className="hint">{t("returnNote")}</p>}
+          {decision === "requestCoordinationLetters" && <p className="hint">{t("lettersNote")}</p>}
           {failure && (
             <p className="alert" role="alert">
               {failure}

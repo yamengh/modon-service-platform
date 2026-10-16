@@ -59,7 +59,7 @@ export function useReviewerBackend(user: Me = reviewer) {
 
 export const summary: ReviewSummary = {
   total: 9,
-  byStatus: { inProgress: 4, returnedForCompletion: 2, approved: 2, rejected: 1, cancelled: 0 },
+  byStatus: { inProgress: 4, returnedForCompletion: 2, awaitingCoordinationLetters: 0, approved: 2, rejected: 1, cancelled: 0 },
 };
 
 export function queueItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
@@ -110,6 +110,11 @@ export function reviewDetail(overrides: Partial<ReviewRequestDetail> = {}): Revi
       { fromStatus: "draft", toStatus: "inProgress", action: "submit", occurredAt: "2026-10-15T10:00:00Z", comment: null, actorUserId: "c1", actorEmail: "contractor@modon.local", actorIsApplicant: true },
     ],
     availableDecisions: ["approve", "returnForCompletion", "reject"],
+    coordinationLetterSlots: [
+      slot("secCoordinationLetter", "خطاب تنسيق الشركة السعودية للكهرباء", "Saudi Electricity Company coordination letter"),
+      slot("nationalGridCoordinationLetter", "خطاب تنسيق الشركة الوطنية لنقل الكهرباء", "National Grid coordination letter"),
+      slot("eastElectricityOfficeCoordinationLetter", "خطاب تنسيق مكتب خدمة كهرباء شرق", "East electricity service office coordination letter"),
+    ],
     ...overrides,
   };
 }

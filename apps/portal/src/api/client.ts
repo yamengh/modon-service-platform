@@ -10,6 +10,7 @@ import type {
   RequestSummary,
   ServiceDetail,
   ServiceSummary,
+  TaskItem,
 } from "./types";
 
 /**
@@ -129,8 +130,19 @@ export const api = {
     return json(await request(`${requestUrl(id)}/excavation`, { method: "PUT", body: JSON.stringify(data) }));
   },
 
+  /** Submits a draft, or resubmits a request that Modon returned for completion. */
   async submitRequest(id: number): Promise<RequestDetail> {
     return json(await request(`${requestUrl(id)}/submit`, { method: "POST" }));
+  },
+
+  /** Requests waiting for the signed-in user (returned for completion, coordination letters requested). */
+  async listTasks(): Promise<TaskItem[]> {
+    return json(await request("/api/modon/tasks"));
+  },
+
+  /** Sends the uploaded coordination letters; the backend requires all of them. */
+  async submitCoordinationLetters(id: number): Promise<RequestDetail> {
+    return json(await request(`${requestUrl(id)}/coordination-letters/submit`, { method: "POST" }));
   },
 
   async uploadAttachment(id: number, slot: string, file: File): Promise<AttachmentInfo> {

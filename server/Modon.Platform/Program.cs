@@ -61,6 +61,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
 {
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestStatus>(JsonNamingPolicy.CamelCase));
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestAction>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ApplicantTaskKind>(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IRequestWorkflow, InProcessRequestWorkflow>();

@@ -96,6 +96,12 @@ export const excavationSlots: AttachmentSlot[] = [
   { code: "ownerEntityLetter", labelAr: "خطاب الجهة المالكة", labelEn: "Owner entity letter", requiredOnSubmit: true, maxSizeKb: 20480, extensions: imagesAndPdf },
 ];
 
+export const coordinationLetterSlots: AttachmentSlot[] = [
+  { code: "secCoordinationLetter", labelAr: "خطاب تنسيق الشركة السعودية للكهرباء", labelEn: "Saudi Electricity Company coordination letter", requiredOnSubmit: true, maxSizeKb: 20480, extensions: imagesAndPdf },
+  { code: "nationalGridCoordinationLetter", labelAr: "خطاب تنسيق الشركة الوطنية لنقل الكهرباء", labelEn: "National Grid coordination letter", requiredOnSubmit: true, maxSizeKb: 20480, extensions: imagesAndPdf },
+  { code: "eastElectricityOfficeCoordinationLetter", labelAr: "خطاب تنسيق مكتب خدمة كهرباء شرق", labelEn: "East electricity service office coordination letter", requiredOnSubmit: true, maxSizeKb: 20480, extensions: imagesAndPdf },
+];
+
 export const emptyExcavation: ExcavationData = {
   establishmentId: null, requestTypeCode: null, contractTypeCode: null, industrialCityCode: null,
   permitTypeCode: null, workDescription: null, issueDate: null, endDate: null, excavationMethodCode: null,
@@ -131,6 +137,9 @@ export function excavationRequest(overrides: Partial<RequestDetail> = {}): Reque
     attachmentSlots: excavationSlots,
     attachments: [],
     history: [{ fromStatus: null, toStatus: "draft", action: "create", occurredAt: "2026-10-15T10:00:00Z", comment: null }],
+    coordinationLetterSlots,
+    canUploadCoordinationLetters: false,
+    currentTask: null,
     ...overrides,
   };
 }

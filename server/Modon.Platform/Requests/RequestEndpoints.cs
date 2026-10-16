@@ -16,6 +16,10 @@ public static class RequestEndpoints
         modon.MapGet("/me/establishments", (RequestService s, HttpContext ctx, CancellationToken ct)
             => s.MyEstablishmentsAsync(User(ctx), ct));
 
+        // Task inbox: the signed-in user's requests that are waiting for them (returned, letters requested).
+        modon.MapGet("/tasks", (RequestService s, HttpContext ctx, CancellationToken ct)
+            => s.ListTasksAsync(User(ctx), ct));
+
         var requests = modon.MapGroup("/requests");
 
         requests.MapPost("/", (RequestService s, HttpContext ctx, CreateRequestBody body, CancellationToken ct)
@@ -31,8 +35,13 @@ public static class RequestEndpoints
             (RequestService s, HttpContext ctx, long id, ExcavationDto body, CancellationToken ct)
                 => s.SaveExcavationAsync(User(ctx), id, body, ct));
 
+        // Submits a draft, or resubmits a returned request.
         requests.MapPost("/{id:long}/submit", (RequestService s, HttpContext ctx, long id, CancellationToken ct)
             => s.SubmitAsync(User(ctx), id, ct));
+
+        requests.MapPost("/{id:long}/coordination-letters/submit",
+            (RequestService s, HttpContext ctx, long id, CancellationToken ct)
+                => s.SubmitCoordinationLettersAsync(User(ctx), id, ct));
 
         // Multipart uploads are protected from cross-site posts by ClientHeaderMiddleware (custom header)
         // and the SameSite=Lax auth cookie, so ASP.NET's form antiforgery token is not used here.

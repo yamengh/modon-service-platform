@@ -120,6 +120,10 @@ public sealed class ReviewService(
     public Task<IResult> RejectAsync(UserAccess reviewer, long id, RejectBody body, CancellationToken ct)
         => DecideAsync(reviewer, id, RequestAction.Reject, "reason", body.Reason, textRequired: true, ct);
 
+    /// <summary>Asks the applicant for the service's coordination letters (optional instructions).</summary>
+    public Task<IResult> RequestCoordinationLettersAsync(UserAccess reviewer, long id, CommentBody body, CancellationToken ct)
+        => DecideAsync(reviewer, id, RequestAction.RequestCoordinationLetters, "comment", body.Comment, textRequired: false, ct);
+
     private async Task<IResult> DecideAsync(
         UserAccess reviewer, long id, RequestAction action, string field, string? text, bool textRequired, CancellationToken ct)
     {
@@ -131,6 +135,11 @@ public sealed class ReviewService(
             return Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [ErrorCodes.Required] });
         if (comment?.Length > MaxCommentLength)
             return Results.ValidationProblem(new Dictionary<string, string[]> { [field] = [ErrorCodes.TooLong] });
+
+        // The workflow is service-agnostic; a decision the service has no use for (e.g. letters for a
+        // service without coordination letters) is refused like any other illegal transition.
+        if (!SupportedByService(request, action))
+            return Results.Problem(title: ProblemCodes.InvalidTransition, statusCode: 409);
 
         try
         {
@@ -165,14 +174,22 @@ public sealed class ReviewService(
     private async Task<ReviewRequestDetail> ToDetailAsync(ServiceRequest r, CancellationToken ct)
     {
         var (ar, en) = await serviceNames.NameOfAsync(r.ServiceCode, ct);
-        var slots = ServiceApplications.Find(r.ServiceCode)?.Slots ?? [];
+        var service = ServiceApplications.Find(r.ServiceCode);
+        var slots = service?.Slots ?? [];
+        var letterSlots = service?.CoordinationSlots ?? [];
         var applicant = (await ApplicantsAsync([r.ApplicantUserId], ct))[r.ApplicantUserId];
         var establishment = r.Establishment is { } e ? new EstablishmentInfo(e.Id, e.CrNumber, e.NameAr, e.NameEn) : null;
         return new ReviewRequestDetail(
             r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status, r.CreatedAt, r.UpdatedAt, r.SubmittedAt,
-            applicant, establishment, ExcavationDto.From(r), slots, r.Attachments.InSlotOrder(slots),
-            await HistoryOfAsync(r, ct), workflow.ReviewActions(r.Status).ToArray());
+            applicant, establishment, ExcavationDto.From(r), slots, r.Attachments.InSlotOrder([.. slots, .. letterSlots]),
+            await HistoryOfAsync(r, ct),
+            workflow.ReviewActions(r.Status).Where(a => SupportedByService(r, a)).ToArray(),
+            letterSlots);
     }
+
+    private static bool SupportedByService(ServiceRequest r, RequestAction action)
+        => action != RequestAction.RequestCoordinationLetters
+           || ServiceApplications.Find(r.ServiceCode)?.CoordinationSlots.Length > 0;
 
     private async Task<ReviewHistoryItem[]> HistoryOfAsync(ServiceRequest r, CancellationToken ct)
     {

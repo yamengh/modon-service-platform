@@ -9,7 +9,7 @@ import { useReferenceData } from "../reference/ReferenceData";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; page: ReviewQueuePage };
 
-const STATUSES: ReviewStatus[] = ["inProgress", "returnedForCompletion", "approved", "rejected", "cancelled"];
+const STATUSES: ReviewStatus[] = ["inProgress", "returnedForCompletion", "awaitingCoordinationLetters", "approved", "rejected", "cancelled"];
 
 /** Filters live in the URL (?status=&service=&search=&page=), so links and the back button keep them. */
 export function QueuePage() {

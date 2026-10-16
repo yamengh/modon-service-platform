@@ -1,20 +1,31 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
-import type { ExcavationData, RequestDetail } from "../api/types";
+import type { AttachmentSlot, ExcavationData, RequestDetail } from "../api/types";
 import { StatusBadge } from "../components/StatusBadge";
+import { TaskPanel } from "../components/TaskPanel";
 import { useI18n } from "../i18n/I18nContext";
 import { formatDate, formatDateTime, formatPlainDate, formatSize } from "../i18n/format";
-import { OPEN_SERVICES } from "../requests/serviceAvailability";
+import type { MessageKey } from "../i18n/messages";
+import { actionPath } from "../requests/serviceAvailability";
 import { FIELD_CATEGORY, useExcavationOptions } from "../requests/useExcavationOptions";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "missing" } | { status: "ready"; request: RequestDetail };
+
+/** Message shown after arriving from another page (see the navigate() calls that set this state). */
+const ARRIVAL_MESSAGES: [string, MessageKey, "notice" | "alert"][] = [
+  ["submitted", "submittedSuccess", "notice"],
+  ["resubmitted", "resubmittedSuccess", "notice"],
+  ["lettersSubmitted", "lettersSubmittedSuccess", "notice"],
+  ["changed", "requestChanged", "alert"],
+];
 
 export function RequestDetailPage() {
   const id = Number(useParams().id);
   const { t, pick, lang } = useI18n();
   const location = useLocation();
-  const justSubmitted = (location.state as { submitted?: boolean } | null)?.submitted === true;
+  const arrivedFrom = (location.state ?? {}) as Record<string, unknown>;
+  const arrival = ARRIVAL_MESSAGES.find(([key]) => arrivedFrom[key] === true);
   const options = useExcavationOptions();
   const [load, setLoad] = useState<Load>({ status: "loading" });
 
@@ -62,6 +73,31 @@ export function RequestDetailPage() {
     return est ? `${pick(est, "name")} – ${est.crNumber}` : String(x.establishmentId);
   };
   const metres = (v: number | null) => (v === null ? "—" : `${v} ${t("metres")}`);
+  const nextStep = actionPath(r.serviceCode, r.id, r.status);
+  const lettersUploaded = r.coordinationLetterSlots.some((s) => r.attachments.some((a) => a.slotCode === s.code));
+
+  const documentList = (slots: AttachmentSlot[]) => (
+    <ul className="docs">
+      {slots.map((slot) => {
+        const file = r.attachments.find((a) => a.slotCode === slot.code);
+        return (
+          <li key={slot.code}>
+            {pick(slot, "label")}:{" "}
+            {file ? (
+              <>
+                <a href={api.attachmentUrl(r.id, slot.code)} download>
+                  {file.fileName}
+                </a>{" "}
+                <span className="meta">({formatSize(file.sizeBytes, lang)})</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </li>
+        );
+      })}
+    </ul>
+  );
 
   const sections: [string, [keyof ExcavationData, string][]][] = [
     [
@@ -107,9 +143,9 @@ export function RequestDetailPage() {
   return (
     <main className="page">
       {back}
-      {justSubmitted && (
-        <p className="notice" role="status">
-          {t("submittedSuccess")}
+      {arrival && (
+        <p className={arrival[2]} role={arrival[2] === "notice" ? "status" : "alert"}>
+          {t(arrival[1])}
         </p>
       )}
       <div className="request-head">
@@ -123,9 +159,17 @@ export function RequestDetailPage() {
         <StatusBadge status={r.status} />
       </div>
 
-      {r.canEdit && OPEN_SERVICES[r.serviceCode] ? (
+      {r.currentTask ? (
+        <TaskPanel task={r.currentTask}>
+          {nextStep && (
+            <Link className="btn primary" to={nextStep}>
+              {t(`task.${r.currentTask.kind}`)}
+            </Link>
+          )}
+        </TaskPanel>
+      ) : r.canEdit && nextStep ? (
         <p>
-          <Link className="btn primary" to={OPEN_SERVICES[r.serviceCode].formPath(r.id)}>
+          <Link className="btn primary" to={nextStep}>
             {t("continueEditing")}
           </Link>
         </p>
@@ -151,27 +195,15 @@ export function RequestDetailPage() {
 
           <div className="card read-section">
             <h2>{t("sectionAttachments")}</h2>
-            <ul className="docs">
-              {r.attachmentSlots.map((slot) => {
-                const file = r.attachments.find((a) => a.slotCode === slot.code);
-                return (
-                  <li key={slot.code}>
-                    {pick(slot, "label")}:{" "}
-                    {file ? (
-                      <>
-                        <a href={api.attachmentUrl(r.id, slot.code)} download>
-                          {file.fileName}
-                        </a>{" "}
-                        <span className="meta">({formatSize(file.sizeBytes, lang)})</span>
-                      </>
-                    ) : (
-                      "—"
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+            {documentList(r.attachmentSlots)}
           </div>
+
+          {(lettersUploaded || r.canUploadCoordinationLetters) && (
+            <div className="card read-section">
+              <h2>{t("coordinationLetters")}</h2>
+              {documentList(r.coordinationLetterSlots)}
+            </div>
+          )}
         </section>
 
         <aside className="card info">
