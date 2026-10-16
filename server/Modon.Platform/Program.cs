@@ -13,6 +13,7 @@ using Modon.Platform.Identity;
 using Modon.Platform.Lookups;
 using Modon.Platform.Requests;
 using Modon.Platform.Requests.Workflow;
+using Modon.Platform.Review;
 using Modon.Platform.Seeding;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,7 +67,10 @@ builder.Services.AddSingleton<IRequestWorkflow, InProcessRequestWorkflow>();
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<ExcavationValidator>();
 builder.Services.AddSingleton<UploadValidator>();
+builder.Services.AddScoped<RequestTransitions>();
+builder.Services.AddScoped<ServiceCatalogNames>();
 builder.Services.AddScoped<RequestService>();
+builder.Services.AddScoped<ReviewService>();
 
 // Private documents live outside wwwroot, so they are never served as static files.
 var documentsRoot = builder.Configuration.GetValue<string>("Modon:Documents:Root")
@@ -88,6 +92,7 @@ await app.EnsureModonSchemaAsync(dbProvider);
 app.UseModonClientHeader();
 app.MapPersonaEndpoints();
 app.MapRequestEndpoints();
+app.MapReviewEndpoints();
 
 await DevUserSeeder.EnsureRolesAsync(app);
 await CatalogSeeder.SeedAsync(app.Services);
@@ -95,7 +100,7 @@ await LookupSeeder.SeedAsync(app.Services);
 if (app.Configuration.GetValue<bool>("Modon:SeedDevUsers"))
 {
     var password = app.Configuration.GetValue<string>("Modon:DevUserPassword") ?? DevUserSeeder.DefaultDevPassword;
-    await DevUserSeeder.EnsureDevUsersAsync(app, password);
+    await DevUserSeeder.EnsureDevUsersAsync(app.Services, password);
 }
 
 app.Run();

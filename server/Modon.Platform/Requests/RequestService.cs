@@ -1,8 +1,5 @@
-using FormCMS.Cms.Services;
-using FormCMS.Core.Descriptors;
 using FormCMS.Core.Identities;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Primitives;
 using Modon.Platform.Catalog;
 using Modon.Platform.Data;
 using Modon.Platform.Documents;
@@ -13,8 +10,8 @@ namespace Modon.Platform.Requests;
 /// <summary>
 /// Request use cases. Every method takes the signed-in user and enforces:
 /// ownership (other users' requests look like 404), the service's applicant roles (403),
-/// and the workflow's editable states (409). Status changes go only through <see cref="TransitionAsync"/>,
-/// which always writes a history row.
+/// and the workflow's editable states (409). Status changes go only through <see cref="RequestTransitions"/>,
+/// which always writes exactly one history row.
 /// </summary>
 public sealed class RequestService(
     ModonDbContext db,
@@ -22,7 +19,8 @@ public sealed class RequestService(
     ExcavationValidator validator,
     UploadValidator uploadValidator,
     IPrivateDocumentStore documents,
-    IQueryService queries,
+    ServiceCatalogNames serviceNames,
+    RequestTransitions transitions,
     TimeProvider clock,
     ILogger<RequestService> logger)
 {
@@ -64,7 +62,7 @@ public sealed class RequestService(
         var requests = await db.ServiceRequests.AsNoTracking()
             .Where(r => r.ApplicantUserId == user.Id)
             .ToListAsync(ct);
-        var names = await ServiceNamesAsync(ct);
+        var names = await serviceNames.AllAsync(ct);
         return Results.Ok(requests
             .OrderByDescending(r => r.CreatedAt).ThenByDescending(r => r.Id)
             .Select(r =>
@@ -106,9 +104,16 @@ public sealed class RequestService(
             request!.Attachments.Select(a => a.SlotCode), ct);
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        await TransitionAsync(request, RequestAction.Submit, user.Id, ct);
+        await transitions.ApplyAsync(request, RequestAction.Submit, user.Id, comment: null, ct);
         request.SubmittedAt = request.UpdatedAt;
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            return Problem(409, ProblemCodes.RequestNotEditable); // submitted twice at the same moment
+        }
         logger.LogInformation("Request {Number} submitted by {User}", request.RequestNumber, user.Id);
         return Results.Ok(await ToDetailAsync(request, ct));
     }
@@ -160,7 +165,7 @@ public sealed class RequestService(
         }
         if (replacedKey is not null) documents.Delete(replacedKey);
 
-        return Results.Ok(ToInfo(attachment));
+        return Results.Ok(attachment.ToInfo());
     }
 
     public async Task<IResult> DeleteAttachmentAsync(UserAccess user, long id, string slotCode, CancellationToken ct)
@@ -198,19 +203,6 @@ public sealed class RequestService(
 
     // --- helpers -------------------------------------------------------------------------------
 
-    private async Task TransitionAsync(ServiceRequest request, RequestAction action, string actorUserId, CancellationToken ct)
-    {
-        var next = await workflow.NextStatusAsync(request, action, ct);
-        var now = Now();
-        request.History.Add(new RequestStatusHistory
-        {
-            RequestId = request.Id, FromStatus = request.Status, ToStatus = next, Action = action,
-            ActorUserId = actorUserId, OccurredAt = now,
-        });
-        request.Status = next;
-        request.UpdatedAt = now;
-    }
-
     private Task<ServiceRequest?> LoadOwnedAsync(UserAccess user, long id, CancellationToken ct)
         => db.ServiceRequests
             .Include(r => r.Excavation)
@@ -236,8 +228,7 @@ public sealed class RequestService(
 
     private async Task<RequestDetail> ToDetailAsync(ServiceRequest r, CancellationToken ct)
     {
-        var names = await ServiceNamesAsync(ct);
-        var (ar, en) = names.GetValueOrDefault(r.ServiceCode, (r.ServiceCode, r.ServiceCode));
+        var (ar, en) = await serviceNames.NameOfAsync(r.ServiceCode, ct);
         var slots = ServiceApplications.Find(r.ServiceCode)?.Slots ?? [];
         return new RequestDetail(
             r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status,
@@ -245,26 +236,10 @@ public sealed class RequestService(
             r.CreatedAt, r.UpdatedAt, r.SubmittedAt,
             ExcavationDto.From(r),
             slots,
-            r.Attachments.OrderBy(a => Array.FindIndex(slots, s => s.Code == a.SlotCode)).Select(ToInfo).ToArray(),
+            r.Attachments.InSlotOrder(slots),
             r.History.OrderBy(h => h.OccurredAt).ThenBy(h => h.Id)
                 .Select(h => new HistoryItem(h.FromStatus, h.ToStatus, h.Action, h.OccurredAt, h.Comment)).ToArray());
     }
-
-    /// <summary>Service names come from the FormCMS catalogue (saved query), so admin edits show up here.</summary>
-    private async Task<Dictionary<string, (string Ar, string En)>> ServiceNamesAsync(CancellationToken ct)
-    {
-        var rows = await queries.ListWithAction(ServiceCatalogSchema.ListQueryName, new Span(),
-            new Pagination(Limit: "100"), new Dictionary<string, StringValues>(), ct);
-        return rows
-            .Where(x => x.ContainsKey("code"))
-            .ToDictionary(
-                x => x["code"].ToString()!,
-                x => (x.TryGetValue("nameAr", out var a) ? a?.ToString() ?? "" : "",
-                      x.TryGetValue("nameEn", out var e) ? e?.ToString() ?? "" : ""));
-    }
-
-    private static AttachmentInfo ToInfo(RequestAttachment a)
-        => new(a.SlotCode, a.FileName, a.ContentType, a.SizeBytes, a.UploadedAt);
 
     private static bool HasApplicantRole(UserAccess user, ServiceApplication service)
         => service.ApplicantRoles.Any(user.Roles.Contains);

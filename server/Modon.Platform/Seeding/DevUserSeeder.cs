@@ -1,4 +1,3 @@
-using FormCMS;
 using FormCMS.Auth.Models;
 using FormCMS.Auth.Services;
 using FormCMS.Utils.ResultExt;
@@ -37,17 +36,33 @@ public static class DevUserSeeder
         await accounts.EnsureRoles(ModonRoles.All).Ok();
     }
 
-    /// <summary>Development-only demo users and establishments. Never enable in production.</summary>
-    public static async Task EnsureDevUsersAsync(WebApplication app, string password)
+    /// <summary>
+    /// Development-only demo users and establishments. Never enable in production. Idempotent: a missing
+    /// demo user is created; an existing one keeps its password and any extra roles, and only gets back a
+    /// seeded role it is missing (e.g. a reviewer created before the role was assigned).
+    /// </summary>
+    public static async Task EnsureDevUsersAsync(IServiceProvider services, string password)
     {
-        foreach (var (email, roles) in DevUsers)
-        {
-            await app.EnsureCmsUser(email, password, roles).Ok();
-        }
-
-        using var scope = app.Services.CreateScope();
+        using var scope = services.CreateScope();
+        var accounts = scope.ServiceProvider.GetRequiredService<IAccountService>();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<CmsUser>>();
         var db = scope.ServiceProvider.GetRequiredService<ModonDbContext>();
+
+        foreach (var (email, roles) in DevUsers)
+        {
+            // Creates the user only when missing; never resets an existing user's password.
+            await accounts.EnsureUser(email, password, roles).Ok();
+
+            var user = await users.FindByEmailAsync(email)
+                       ?? throw new InvalidOperationException($"Dev user {email} was not created.");
+            var missing = roles.Except(await users.GetRolesAsync(user)).ToArray();
+            if (missing.Length == 0) continue;
+            var added = await users.AddToRolesAsync(user, missing);
+            if (!added.Succeeded)
+                throw new InvalidOperationException(
+                    $"Could not add roles to {email}: {string.Join("; ", added.Errors.Select(e => e.Description))}");
+        }
+
         foreach (var (cr, nameAr, nameEn, email) in DevEstablishments)
         {
             var user = await users.FindByEmailAsync(email);

@@ -86,6 +86,36 @@ describe("Request tracking", () => {
   });
 });
 
+describe("Reviewer decisions in the applicant's view", () => {
+  beforeEach(() => {
+    useExcavationBackend();
+  });
+
+  it("shows the reviewer's action and comment in the status history", async () => {
+    vi.mocked(api.getRequest).mockResolvedValue(
+      excavationRequest({
+        status: "returnedForCompletion", canEdit: false, excavation: completeExcavation, attachments: allAttachments,
+        submittedAt: "2026-10-15T11:00:00Z",
+        history: [
+          { fromStatus: null, toStatus: "draft", action: "create", occurredAt: "2026-10-15T10:00:00Z", comment: null },
+          { fromStatus: "draft", toStatus: "inProgress", action: "submit", occurredAt: "2026-10-15T11:00:00Z", comment: null },
+          {
+            fromStatus: "inProgress", toStatus: "returnedForCompletion", action: "returnForCompletion",
+            occurredAt: "2026-10-16T09:00:00Z", comment: "أرفق خطاب الجهة المالكة موقعاً",
+          },
+        ],
+      }),
+    );
+
+    renderApp("/requests/7");
+
+    const history = (await screen.findByRole("heading", { name: "سجل حالة الطلب" })).parentElement!;
+    expect(within(history).getByText("إعادة الطلب لإكمال النواقص")).toBeInTheDocument();
+    expect(within(history).getByText("أرفق خطاب الجهة المالكة موقعاً")).toBeInTheDocument();
+    expect(within(history).getAllByText("إكمال النواقص").length).toBeGreaterThan(0);
+  });
+});
+
 describe("Start service", () => {
   beforeEach(() => {
     useExcavationBackend();

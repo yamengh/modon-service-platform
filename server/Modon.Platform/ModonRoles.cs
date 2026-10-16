@@ -18,4 +18,13 @@ public static class ModonRoles
 
     public static string[] PersonasFor(IEnumerable<string> roles)
         => PortalPersonas.Where(roles.Contains).ToArray();
+
+    /// <summary>
+    /// Roles allowed to use the admin portal and the review endpoints: Modon reviewers, plus the FormCMS
+    /// super admin ("sa"), who already has unrestricted data access in FormCMS. The FormCMS "admin" role is
+    /// a schema/content-editing role with no Modon meaning, so it is deliberately not included.
+    /// </summary>
+    public static readonly string[] ReviewerRoles = [ModonReviewer, FormCMS.Auth.Models.Roles.Sa];
+
+    public static bool CanReview(IEnumerable<string> roles) => ReviewerRoles.Any(roles.Contains);
 }

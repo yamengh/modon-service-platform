@@ -184,6 +184,7 @@ export function RequestDetailPage() {
                   <StatusBadge status={h.toStatus} />
                 </span>
                 <span className="meta">{formatDateTime(h.occurredAt)}</span>
+                {h.comment && <span className="history-comment">{h.comment}</span>}
               </li>
             ))}
           </ol>

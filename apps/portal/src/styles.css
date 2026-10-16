@@ -118,6 +118,7 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
 .read-grid dt { font-size: 0.8rem; color: var(--muted); }
 .read-grid dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
 .timeline { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.history-comment { white-space: pre-line; background: #fafbfc; border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 0.6rem; }
 .timeline li { display: flex; flex-direction: column; gap: 0.2rem; padding-inline-start: 0.75rem; border-inline-start: 3px solid var(--green); }
 
 @media (max-width: 760px) {

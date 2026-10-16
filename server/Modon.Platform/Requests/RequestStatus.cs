@@ -1,8 +1,9 @@
 namespace Modon.Platform.Requests;
 
 /// <summary>
-/// Lifecycle of a service request. Milestone 2 implements Draft → InProgress;
-/// the other states are reserved for the review and workflow milestones.
+/// Lifecycle of a service request. Implemented so far: Draft → InProgress (applicant submits) and
+/// InProgress → Approved / Rejected / ReturnedForCompletion (reviewer decides). Resubmitting a returned
+/// request and cancellation belong to later milestones.
 /// </summary>
 public enum RequestStatus
 {
@@ -25,4 +26,9 @@ public enum RequestAction
 {
     Create,
     Submit,
+
+    // Reviewer decisions (Milestone 3)
+    Approve,
+    Reject,
+    ReturnForCompletion,
 }

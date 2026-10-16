@@ -8,7 +8,8 @@ public sealed record PersonaResponse(
     string Name,
     string[] Roles,
     string[] Personas,
-    bool CanUsePortal);
+    bool CanUsePortal,
+    bool CanReview);
 
 public static class PersonaEndpoints
 {
@@ -25,7 +26,8 @@ public static class PersonaEndpoints
 
             var personas = ModonRoles.PersonasFor(user.Roles);
             return Results.Ok(new PersonaResponse(
-                user.Id, user.Email, user.Name, user.Roles, personas, personas.Length > 0));
+                user.Id, user.Email, user.Name, user.Roles, personas, personas.Length > 0,
+                ModonRoles.CanReview(user.Roles)));
         });
     }
 }

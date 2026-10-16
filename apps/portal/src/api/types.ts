@@ -48,7 +48,7 @@ export interface Establishment {
 }
 
 export type RequestStatus = "draft" | "inProgress" | "returnedForCompletion" | "approved" | "rejected" | "cancelled";
-export type RequestAction = "create" | "submit";
+export type RequestAction = "create" | "submit" | "approve" | "reject" | "returnForCompletion";
 
 /** Excavation permit form data. Dates are "yyyy-MM-dd"; every field may be null in a draft. */
 export interface ExcavationData {

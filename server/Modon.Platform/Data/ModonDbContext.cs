@@ -53,7 +53,8 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
             e.Property(x => x.RequestNumber).HasMaxLength(40);
             e.HasIndex(x => x.RequestNumber).IsUnique();
             e.Property(x => x.ServiceCode).HasMaxLength(60);
-            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+            // Concurrency token: a status change only saves if nobody else changed the status first.
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(40).IsConcurrencyToken();
             e.Property(x => x.ApplicantUserId).HasMaxLength(450);
             e.HasIndex(x => new { x.ApplicantUserId, x.CreatedAt });
             e.HasOne(x => x.Establishment).WithMany().HasForeignKey(x => x.EstablishmentId)

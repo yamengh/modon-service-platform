@@ -66,6 +66,9 @@ const ar = {
   "status.cancelled": "ملغي",
   "action.create": "إنشاء الطلب",
   "action.submit": "تقديم الطلب",
+  "action.approve": "اعتماد الطلب من مدن",
+  "action.reject": "رفض الطلب من مدن",
+  "action.returnForCompletion": "إعادة الطلب لإكمال النواقص",
   statusHistory: "سجل حالة الطلب",
 
   excavationTitle: "تصريح أعمال الحفر",
@@ -198,6 +201,9 @@ const en: Record<MessageKey, string> = {
   "status.cancelled": "Cancelled",
   "action.create": "Request created",
   "action.submit": "Request submitted",
+  "action.approve": "Approved by Modon",
+  "action.reject": "Rejected by Modon",
+  "action.returnForCompletion": "Returned for completion",
   statusHistory: "Status history",
 
   excavationTitle: "Excavation Works Permit",
