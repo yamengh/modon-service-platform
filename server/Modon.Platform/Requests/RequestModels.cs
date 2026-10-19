@@ -100,4 +100,6 @@ public static class ProblemCodes
     public const string InvalidTransition = "invalidTransition";
     public const string RequestChanged = "requestChanged";
     public const string NotYourEstablishment = "notYourEstablishment";
+    public const string WorkflowUnavailable = "workflowUnavailable";
+    public const string WorkflowNotStarted = "workflowNotStarted";
 }

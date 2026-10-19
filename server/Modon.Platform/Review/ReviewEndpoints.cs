@@ -1,6 +1,7 @@
 using FormCMS.Cms.Services;
 using FormCMS.Core.Identities;
 using Modon.Platform.Requests;
+using Modon.Platform.Requests.Workflow;
 
 namespace Modon.Platform.Review;
 
@@ -17,6 +18,12 @@ public static class ReviewEndpoints
         var review = app.MapGroup("/api/modon/review").AddEndpointFilter(RequireReviewer);
 
         review.MapGet("/summary", (ReviewService s, CancellationToken ct) => s.SummaryAsync(ct));
+
+        // Workflow diagnostics: which engine is configured and whether it really works.
+        review.MapGet("/workflow", async (WorkflowDiagnostics d, CancellationToken ct) => Results.Ok(await d.StatusAsync(ct)));
+
+        review.MapGet("/requests/{id:long}/workflow", (ReviewService s, long id, CancellationToken ct)
+            => s.WorkflowAsync(id, ct));
 
         review.MapGet("/requests", (ReviewService s, string? status, string? service, string? search,
                 int? page, int? pageSize, CancellationToken ct)

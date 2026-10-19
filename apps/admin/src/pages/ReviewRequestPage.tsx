@@ -4,6 +4,7 @@ import { api, ApiError } from "../api/client";
 import type { AttachmentSlot, Decision, ExcavationData, LookupCategory, ReviewRequestDetail } from "../api/types";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { StatusBadge } from "../components/StatusBadge";
+import { WorkflowPanel } from "../components/WorkflowPanel";
 import { useI18n } from "../i18n/I18nContext";
 import { formatDate, formatDateTime, formatPlainDate, formatSize } from "../i18n/format";
 import type { MessageKey } from "../i18n/messages";
@@ -189,6 +190,7 @@ export function ReviewRequestPage() {
             <h2>{t("decision")}</h2>
             <DecisionPanel request={r} onDecided={onDecided} onConflict={onConflict} />
           </div>
+          <WorkflowPanel key={`${r.id}-${r.status}`} request={r} />
           <div className="card">
             <h2>{t("statusHistory")}</h2>
             <ol className="timeline">

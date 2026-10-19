@@ -18,6 +18,12 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The checked-in BPMN, so diagnostics and tests can compare against exactly what should be deployed. -->
+        <EmbeddedResource Include="Requests/Workflow/Camunda/excavation-permit.bpmn" LogicalName="Modon.Platform.excavation-permit.bpmn" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Camunda.Orchestration.Sdk" Version="9.2.2" />
       <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         <PrivateAssets>all</PrivateAssets>

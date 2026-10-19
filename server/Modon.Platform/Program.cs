@@ -13,6 +13,7 @@ using Modon.Platform.Identity;
 using Modon.Platform.Lookups;
 using Modon.Platform.Requests;
 using Modon.Platform.Requests.Workflow;
+using Modon.Platform.Requests.Workflow.Camunda;
 using Modon.Platform.Review;
 using Modon.Platform.Seeding;
 
@@ -64,7 +65,24 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ApplicantTaskKind>(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.AddSingleton<IRequestWorkflow, InProcessRequestWorkflow>();
+
+// Workflow engine: InProcess (default; automated tests and local fallback) or Camunda (excavation BPMN in Camunda 8.9).
+var workflowOptions = builder.Configuration.GetSection(WorkflowOptions.Section).Get<WorkflowOptions>() ?? new WorkflowOptions();
+workflowOptions.Validate();
+builder.Services.AddSingleton(workflowOptions);
+builder.Services.AddSingleton<InProcessRequestWorkflow>();
+if (workflowOptions.Engine == WorkflowEngineKind.Camunda)
+{
+    builder.Services.AddSingleton<ICamundaEngine>(sp => new CamundaSdkEngine(workflowOptions, sp.GetRequiredService<ILoggerFactory>()));
+    builder.Services.AddSingleton<IRequestWorkflow, CamundaRequestWorkflow>();
+}
+else
+{
+    builder.Services.AddSingleton<IRequestWorkflow>(sp => sp.GetRequiredService<InProcessRequestWorkflow>());
+}
+builder.Services.AddSingleton<WorkflowDiagnostics>();
+builder.Services.AddHostedService<WorkflowStartupCheck>();
+builder.Services.AddHealthChecks().AddCheck<WorkflowHealthCheck>("workflow");
 builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<ExcavationValidator>();
 builder.Services.AddSingleton<UploadValidator>();
@@ -94,6 +112,8 @@ app.UseModonClientHeader();
 app.MapPersonaEndpoints();
 app.MapRequestEndpoints();
 app.MapReviewEndpoints();
+// "Healthy" / "Unhealthy" only (details: GET /api/modon/review/workflow). Never served from FormCMS's output cache.
+app.MapHealthChecks("/health").CacheOutput(policy => policy.NoCache());
 
 await DevUserSeeder.EnsureRolesAsync(app);
 await CatalogSeeder.SeedAsync(app.Services);

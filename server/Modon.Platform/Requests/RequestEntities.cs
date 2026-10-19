@@ -24,6 +24,18 @@ public class ServiceRequest
     public DateTime UpdatedAt { get; set; }
     public DateTime? SubmittedAt { get; set; }
 
+    // Link to the Camunda process instance (null for drafts and for requests handled by the in-process engine).
+    // Set once, when the request is first submitted; resubmissions and letters continue the same instance.
+
+    /// <summary>Camunda process instance key.</summary>
+    public string? WorkflowInstanceKey { get; set; }
+
+    /// <summary>Value of the instance's <c>correlationKey</c> variable; every message for this request uses it.</summary>
+    public string? WorkflowCorrelationKey { get; set; }
+
+    public string? WorkflowDefinitionKey { get; set; }
+    public int? WorkflowDefinitionVersion { get; set; }
+
     public ExcavationPermitDetails? Excavation { get; set; }
     public List<RequestAttachment> Attachments { get; set; } = [];
     public List<RequestStatusHistory> History { get; set; } = [];

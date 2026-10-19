@@ -10,6 +10,16 @@
         "ASPNETCORE_ENVIRONMENT": "Development"
       }
     },
+    "http-camunda": {
+      "commandName": "Project",
+      "dotnetRunMessages": true,
+      "launchBrowser": false,
+      "applicationUrl": "http://localhost:5100",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "Modon__Workflow__Engine": "Camunda"
+      }
+    },
     "http-sqlite": {
       "commandName": "Project",
       "dotnetRunMessages": true,

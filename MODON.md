@@ -12,7 +12,11 @@ This repository is **FormCMS** plus a Modon layer built on top of it. The FormCM
 | `docker-compose.yml` | PostgreSQL for local development. |
 | `modon-platform.sln` | Solution with only FormCMS + Modon projects (open this one in your IDE). |
 
-**Current milestone (4):** every Excavation Works Permit path in the manual works end to end.
+**Current milestone (5):** the Excavation Works Permit lifecycle can run on a **real Camunda 8.9 process**
+(`excavation-permit.bpmn`), with PostgreSQL and Camunda kept consistent. Camunda is switched on per run
+(section 7); without it the backend uses its built-in (in-process) rules, exactly as in Milestone 4.
+
+Everything from Milestone 4:
 
 - **Partner portal** — sign-in, the service catalogue, and the **Excavation Works Permit** application
   (drafts, the full form, six required attachments, submission and request tracking), plus:
@@ -24,8 +28,8 @@ This repository is **FormCMS** plus a Modon layer built on top of it. The FormCM
   **approve**, **request coordination letters** (optional instructions), **return for completion**
   (comment required) and **reject** (reason required).
 
-Not in this milestone: the Building Licence application, the Expo mobile app and Camunda (each has its own
-milestone), and email/SMS notifications.
+Not in this milestone: the Building Licence application, the Expo mobile app (each has its own milestone),
+and email/SMS notifications.
 
 ---
 
@@ -57,8 +61,9 @@ Use the `http-sqlite` profile in step 3.
 
 ```bash
 cd server/Modon.Platform
-dotnet run                               # PostgreSQL (option A)
-dotnet run --launch-profile http-sqlite  # SQLite (option B)
+dotnet run                                # PostgreSQL (option A), built-in workflow rules
+dotnet run --launch-profile http-camunda  # PostgreSQL + Camunda 8.9 workflow (section 7)
+dotnet run --launch-profile http-sqlite   # SQLite (option B)
 ```
 
 Wait for `Now listening on: http://localhost:5100`. On first start it automatically:
@@ -186,14 +191,20 @@ The backend tests run on SQLite. To check the same flows against PostgreSQL, sta
 (`dotnet run`) and follow steps 5b–5e by hand; the request history in the admin portal must show one row
 per status change (create, submit, return, resubmit, letters requested, letters sent, approve).
 
+The Camunda tests (`server/Modon.Platform.Tests/Camunda/`) need **no** Camunda cluster: they run the real
+adapter and Camunda SDK against a fake cluster that follows the checked-in BPMN. Checking against the real
+cluster is a separate, manual step — see section 7.5.
+
 ## How the pieces fit
 
 ```
 Partner portal :5173 ─┐
                       ├─/api──► Modon.Platform :5100 ──► PostgreSQL :5433
 Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entities, saved queries
-                                  └─ Modon:   personas, requests, attachments, tasks, review, seeding
-                                              (own tables "modon_*", EF Core)
+                                  ├─ Modon:   personas, requests, attachments, tasks, review, seeding
+                                  │           (own tables "modon_*", EF Core)
+                                  └─ Workflow: in-process rules, or ──REST /v2──► Camunda 8.9 :8080
+                                                                    (process "modon-excavation-permit")
 ```
 
 | Endpoint | Provided by | Purpose |
@@ -219,6 +230,9 @@ Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entit
 | `POST /api/modon/review/requests/{id}/return` | Modon (reviewers) | `{ "comment": "required" }` → ReturnedForCompletion |
 | `POST /api/modon/review/requests/{id}/reject` | Modon (reviewers) | `{ "reason": "required" }` → Rejected |
 | `POST /api/modon/review/requests/{id}/request-coordination-letters` | Modon (reviewers) | `{ "comment": "optional" }` → AwaitingCoordinationLetters |
+| `GET /api/modon/review/workflow` | Modon (reviewers) | Which workflow engine is configured and whether it works **now** (Camunda reachable, partitions healthy, process deployed) |
+| `GET /api/modon/review/requests/{id}/workflow` | Modon (reviewers) | The request's PostgreSQL status next to where its Camunda process instance is (`inSync`) |
+| `GET /health` | Modon (anyone) | `Healthy` / `Unhealthy` (503) for the configured workflow engine — no details |
 
 Security rules enforced by the backend:
 
@@ -243,6 +257,9 @@ Security rules enforced by the backend:
   and can only be downloaded by their owner or, once submitted, by a reviewer. Size, extension, MIME type
   and file signature are checked.
 - State-changing `/api/modon` calls need the header `X-Modon-Client` (the portal sends it), which blocks cross-site form posts.
+- With Camunda enabled, every status change is first performed in Camunda and then saved in PostgreSQL. If Camunda
+  is unreachable, refuses the call or the process is not deployed, the action returns **503** `workflowUnavailable`
+  and nothing changes. See section 7.4 for how duplicates and failures are handled.
 
 The catalogue is a normal FormCMS entity (`modonService`), so its text can be edited later from the
 FormCMS admin tools without code changes. The seeder only adds missing services; it never overwrites edits.
@@ -260,6 +277,11 @@ FormCMS admin tools without code changes. The seeder only adds missing services;
 | Want a clean database | PostgreSQL: `docker compose down -v` (deletes data). SQLite: delete `server/Modon.Platform/modon-dev.db*`. Uploaded files: delete `server/Modon.Platform/App_Data/`. |
 | SQLite error about a missing column after updating the code | The SQLite option does not upgrade existing tables. Delete `server/Modon.Platform/modon-dev.db*` and restart. (PostgreSQL upgrades itself through migrations.) |
 | `dotnet build` says a file is locked by `Modon.Platform` | The backend is still running. Stop it (Ctrl+C in its terminal) and build again. |
+| Startup log says `Workflow engine NOT ready (camunda): Camunda is NOT reachable` | Camunda isn't running or the address is wrong. Start it (section 7.1) and check `Modon:Workflow:Camunda:RestAddress`. Use `127.0.0.1`, not `localhost` (the same Docker IPv6 problem as PostgreSQL). |
+| Startup log says `Process 'modon-excavation-permit' is not deployed` | Deploy the BPMN (section 7.2), then restart the backend or reopen the admin dashboard. |
+| Submitting or deciding shows "خدمة سير العمل … غير متاحة" / "تعذر الوصول إلى محرك سير العمل" (HTTP 503) | Camunda was not reachable for that call. Nothing was changed; fix Camunda and try again. Details: admin dashboard → محرك سير العمل, or the backend log. |
+| A decision fails with "هذا الطلب غير مرتبط بعملية في Camunda" (409 `workflowNotStarted`) | The request was submitted while Camunda was off, so it has no process instance. Handle it with the built-in engine (`dotnet run` without `http-camunda`). |
+| Camunda element names look garbled in Operate (e.g. `Ã˜Â…`) | The local bundle mis-reads non-ASCII names. The checked-in BPMN uses English names only; don't add Arabic names to it. |
 
 ## For developers: changing the Modon tables
 
@@ -301,3 +323,162 @@ It is applied automatically the next time the backend starts on PostgreSQL.
 - The letter names follow the catalogue's required-documents text: الشركة السعودية للكهرباء،
   الشركة الوطنية لنقل الكهرباء، مكتب خدمة كهرباء شرق.
 - No email/SMS is sent when a request is returned, when letters are requested, or when the contractor responds.
+
+## 7. Camunda 8.9 workflow (Milestone 5)
+
+The excavation lifecycle can run on a real BPMN process in Camunda. Modon.Platform talks to the cluster's
+**Orchestration Cluster REST API** (`/v2`) through Camunda's C# SDK, **`Camunda.Orchestration.Sdk` 9.2.2** —
+the SDK line that matches Camunda **8.9** (SDK major 9 = server 8.9). Camunda only appears in Modon.Platform
+(`server/Modon.Platform/Requests/Workflow/Camunda/`); nothing in FormCMS changed.
+
+**The process** — `server/Modon.Platform/Requests/Workflow/Camunda/excavation-permit.bpmn`, process id
+`modon-excavation-permit`, version tag `1.0.0`:
+
+- **Request submitted** → **Modon review** (an event-based gateway: the first message wins):
+  - `ExcavationApproved` → end **Permit approved**
+  - `ExcavationRejected` → end **Permit rejected**
+  - `ExcavationReturnedForCompletion` → wait at **Contractor resubmits** (`ExcavationResubmitted`) → back to **Modon review**
+  - `ExcavationCoordinationLettersRequested` → wait at **Contractor sends the letters**
+    (`ExcavationCoordinationLettersSubmitted`) → back to **Modon review**
+
+- The **first submission** starts one process instance. Its key and a correlation key unique to the request are
+  stored on the request (`modon_service_requests.WorkflowInstanceKey`, `WorkflowCorrelationKey`, definition key
+  and version). The request number is also the instance's **business id**, so you can find it in Operate.
+- Every later action — approve, reject, return, request letters, resubmit, send letters — is a **message**
+  correlated to that same instance with the stored correlation key. No second instance is ever started for a request.
+
+### 7.1 The local Camunda cluster
+
+The project uses your existing Camunda 8.9 Docker bundle (`C:\Users\yamen\Downloads\docker-compose-8.9`,
+the lightweight `docker-compose.yaml`: one `orchestration` container, version 8.9.21, H2 storage). Settings found
+in that bundle and confirmed against the running cluster:
+
+| What | Value |
+|---|---|
+| REST API (used by Modon) | `http://127.0.0.1:8080` (Modon adds `/v2`) |
+| gRPC (Modeler, zbctl) | `127.0.0.1:26500` |
+| Operate / Tasklist | <http://127.0.0.1:8080/operate>, <http://127.0.0.1:8080/tasklist> — sign in `demo` / `demo` |
+| Authentication | `basic`, with `unprotectedApi: true` → API calls work **without credentials** (auth strategy `NONE`). `BASIC` with `demo`/`demo` also works. |
+| Authorizations, multi-tenancy | off |
+
+Start / stop only the orchestration container (Modon does not need `connectors`):
+
+```bash
+docker start orchestration     # wait until "docker ps" shows it as healthy (about 30 s)
+docker stop orchestration
+```
+
+Check it: `curl http://127.0.0.1:8080/v2/topology` must show `"gatewayVersion":"8.9.21"` and a `healthy` partition.
+
+### 7.2 Deploy the BPMN
+
+The process must be deployed **once** (and again after any change to the BPMN). Modon never deploys it by itself.
+
+**With Camunda Modeler (desktop):**
+
+1. Open Camunda Modeler → **File → Open File…** → `server/Modon.Platform/Requests/Workflow/Camunda/excavation-permit.bpmn`.
+   The diagram opens as a Camunda 8 diagram (execution platform 8.9).
+2. Click the **rocket** icon (*Deploy current diagram*) in the bottom-left toolbar.
+3. Choose **Camunda 8 Self-Managed**.
+4. **Cluster endpoint**: `http://127.0.0.1:26500` (the gRPC gateway of the `orchestration` container).
+   Use `127.0.0.1`, not `localhost`.
+5. **Authentication**: **None** (the local API is unprotected). If your Modeler version insists, choose
+   **Basic** with `demo` / `demo`.
+6. Click **Deploy**. Modeler shows "Diagram deployed" with a process definition version.
+
+> These Modeler steps follow Camunda Modeler 5's deploy dialog and the endpoints of this cluster, but they were
+> **not run during Milestone 5** (no desktop UI was available). The deployment that was actually performed and
+> verified is the command-line one below. If your Modeler version asks for the REST address instead, use
+> `http://127.0.0.1:8080`.
+
+**Or from the command line** (the same deployment through the REST API — this is how it was deployed and
+checked during Milestone 5):
+
+```bash
+curl -X POST http://127.0.0.1:8080/v2/deployments \
+  -F "resources=@server/Modon.Platform/Requests/Workflow/Camunda/excavation-permit.bpmn"
+```
+
+**Verify the deployment** (do not assume it worked):
+
+- Operate → **Processes** → *Modon Excavation Works Permit*, or
+- `curl -X POST http://127.0.0.1:8080/v2/process-definitions/search -H "Content-Type: application/json" -d "{\"filter\":{\"processDefinitionId\":\"modon-excavation-permit\"}}"`, or
+- the admin portal dashboard: **محرك سير العمل: Camunda — جاهز** with `modon-excavation-permit vN`.
+
+Deploying an unchanged file again does not create a new version. During Milestone 5 the local cluster got
+version 1 (with Arabic element names, which the bundle garbled) and version 2 (English names, current).
+
+### 7.3 Run Modon with Camunda
+
+Settings (`server/Modon.Platform/appsettings.Development.json`, section `Modon:Workflow`):
+
+| Setting | Development value | Meaning |
+|---|---|---|
+| `Engine` | `InProcess` | `InProcess` (built-in rules, used by the automated tests) or `Camunda` |
+| `Camunda:RestAddress` | `http://127.0.0.1:8080` | Cluster REST address, without `/v2` |
+| `Camunda:AuthStrategy` | `NONE` | `NONE` or `BASIC` (then also `BasicUsername`, `BasicPassword`) |
+| `Camunda:ProcessId` | `modon-excavation-permit` | BPMN process id |
+| `Camunda:TenantId` | (empty) | Only when multi-tenancy is on |
+| `Camunda:RequestTimeoutSeconds` | `10` | Per call; a slower answer is treated as "unavailable" |
+
+Start the backend with Camunda switched on (the profile sets `Modon__Workflow__Engine=Camunda`):
+
+```bash
+cd server/Modon.Platform
+dotnet run --launch-profile http-camunda
+```
+
+Invalid settings stop the backend at startup with a readable message. A **reachable** Camunda is not assumed:
+about a second after start the backend checks the cluster and logs one of
+
+```
+Workflow engine ready (camunda): Camunda 8.9.21 at http://127.0.0.1:8080: process 'modon-excavation-permit' version 2 is deployed.
+Workflow engine NOT ready (camunda): Camunda is NOT reachable: Cannot reach Camunda at … Submitting and reviewing requests will fail with 503 …
+Workflow engine NOT ready (camunda): Camunda 8.9.21 at …: Process '…' is not deployed. Deploy excavation-permit.bpmn (see MODON.md). …
+```
+
+The same check is on the admin dashboard (**محرك سير العمل**), at `GET /api/modon/review/workflow`, and at
+`GET /health`. On a request page the **مقارنة الحالة مع Camunda** button compares PostgreSQL with Camunda.
+
+### 7.4 Consistency rules
+
+- **Camunda first, PostgreSQL second.** An action is checked against the same rules as before (illegal → 409,
+  Camunda is not called), then performed in Camunda, then saved in PostgreSQL with one history row.
+- **One outcome.** Camunda's event-based gateway accepts only the first decision message; a second, conflicting
+  or repeated message finds no waiting instance and is refused (409). PostgreSQL's status concurrency token is the
+  second safety net. Both were checked with simultaneous requests against the real cluster.
+- **Camunda unavailable** (unreachable, timeout, 4xx/5xx, not deployed): 503, nothing saved. The SDK's automatic
+  retry is turned off, so a call is never repeated behind Modon's back.
+- **Saving failed after Camunda accepted a message** (e.g. the response was lost): the next attempt of the same
+  action finds Camunda already at that step and only saves it — still one history row.
+- **Saving failed after a process was started**: the new instance is cancelled. If even the "start" response was
+  lost, the left-over instance has a correlation key nobody uses, so it can never receive this request's messages
+  (it stays visible in Operate and can be cancelled there).
+- Requests submitted while Camunda was off have no instance; with Camunda on they are refused with 409
+  `workflowNotStarted` (they are not moved into Camunda automatically).
+
+### 7.5 Check it against the real cluster
+
+1. `docker start orchestration`, deploy the BPMN (7.2), `dotnet run --launch-profile http-camunda`, start both portals.
+2. Admin dashboard: **محرك سير العمل: Camunda — جاهز**, version 8.9.21, `modon-excavation-permit v2`.
+3. Submit a request as `contractor@modon.local`. In Operate, find the instance by its business id (the request
+   number): it waits at **Modon review**. On the request page in the admin portal, **مقارنة الحالة مع Camunda**
+   shows *متطابق*.
+4. Return it → Operate shows it waiting at **Contractor resubmits**; resubmit → back at **Modon review** (same instance).
+5. Request coordination letters → **Contractor sends the letters**; upload and send the three letters → **Modon review**.
+6. Approve → the instance is completed at **Permit approved**; the request's history has one row per step.
+7. `docker stop orchestration`, try to submit another request → "خدمة سير العمل … غير متاحة", the request stays a
+   draft, and the dashboard says Camunda is NOT reachable. Start it again and submit — it works.
+
+## Milestone 5 assumptions and limitations
+
+- Camunda is opt-in per run (`http-camunda` profile); the default and the automated tests use the in-process engine.
+- PostgreSQL stays the source of truth for what the portals show; Camunda decides which step is possible next.
+  There are no job workers or user tasks in Camunda: Modon's own screens do the human work, and Tasklist is not used.
+- Requests submitted with the in-process engine are not migrated into Camunda (409 `workflowNotStarted`).
+- Process instance creation is not deduplicated by Camunda's business id: the local cluster does not enforce
+  business-id uniqueness (checked live), so Modon guards against duplicates itself (section 7.4).
+- Only `NONE` and `BASIC` authentication are wired (what the local bundle uses). OAuth/OIDC for a Keycloak-based
+  cluster would need a small addition.
+- The BPMN has English element names only, because the local bundle garbles non-ASCII names.
+- After a lost "start" response an orphan instance may remain in Camunda (harmless, cancel it in Operate).

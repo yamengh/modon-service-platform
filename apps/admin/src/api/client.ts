@@ -8,6 +8,8 @@ import type {
   ReviewQueuePage,
   ReviewRequestDetail,
   ReviewSummary,
+  RequestWorkflowReport,
+  WorkflowStatusReport,
   ServiceSummary,
 } from "./types";
 
@@ -80,6 +82,16 @@ export const api = {
 
   async getSummary(): Promise<ReviewSummary> {
     return json(await request("/api/modon/review/summary"));
+  },
+
+  /** Which workflow engine is configured, and whether it works right now. */
+  async getWorkflowStatus(): Promise<WorkflowStatusReport> {
+    return json(await request("/api/modon/review/workflow"));
+  },
+
+  /** Compares the request's status with its Camunda process instance. */
+  async getRequestWorkflow(id: number): Promise<RequestWorkflowReport> {
+    return json(await request(`${reviewUrl(id)}/workflow`));
   },
 
   async listRequests(filters: QueueFilters): Promise<ReviewQueuePage> {

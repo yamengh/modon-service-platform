@@ -60,7 +60,11 @@ export function DecisionPanel({ request, onDecided, onConflict }: Props) {
       setDecision(null);
       onDecided(updated, decision);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409) {
+      if (err instanceof ApiError && err.status === 503) {
+        setFailure(t("workflowUnavailable"));
+      } else if (err instanceof ApiError && err.status === 409 && err.message === "workflowNotStarted") {
+        setFailure(t("workflowNotStarted"));
+      } else if (err instanceof ApiError && err.status === 409) {
         setDecision(null);
         onConflict();
       } else if (err instanceof ApiError && err.status === 400) {

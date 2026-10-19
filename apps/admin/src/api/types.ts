@@ -137,6 +137,52 @@ export interface ReviewRequestDetail {
   availableDecisions: Decision[];
   /** Coordination letters the applicant uploads when asked (shown once uploaded). */
   coordinationLetterSlots: AttachmentSlot[];
+  workflow: ReviewWorkflowInfo;
+}
+
+export type WorkflowEngine = "inProcess" | "camunda";
+
+/** Which engine handles the request and, for Camunda, its process instance. */
+export interface ReviewWorkflowInfo {
+  engine: WorkflowEngine;
+  processInstanceKey: string | null;
+  processDefinitionVersion: number | null;
+}
+
+/** GET /api/modon/review/workflow — checked live by the backend. */
+export interface WorkflowStatusReport {
+  engine: WorkflowEngine;
+  ready: boolean;
+  summary: string;
+  camunda: {
+    restAddress: string;
+    authStrategy: string;
+    reachable: boolean;
+    gatewayVersion: string | null;
+    brokers: number | null;
+    partitionsHealthy: boolean;
+    processId: string;
+    processDeployed: boolean;
+    deployedVersion: number | null;
+    deployedVersionTag: string | null;
+    checkedInVersionTag: string | null;
+    processDefinitionKey: string | null;
+    error: string | null;
+  } | null;
+}
+
+/** GET /api/modon/review/requests/{id}/workflow — the database status next to Camunda's. */
+export interface RequestWorkflowReport {
+  engine: WorkflowEngine;
+  requestNumber: string;
+  databaseStatus: RequestStatus;
+  processInstanceKey: string | null;
+  processDefinitionVersion: number | null;
+  engineState: string | null;
+  engineElementId: string | null;
+  engineStatus: RequestStatus | null;
+  inSync: boolean | null;
+  note: string | null;
 }
 
 export interface QueueFilters {

@@ -22,6 +22,7 @@ public sealed class ReviewService(
     RequestTransitions transitions,
     ServiceCatalogNames serviceNames,
     IPrivateDocumentStore documents,
+    WorkflowDiagnostics diagnostics,
     ILogger<ReviewService> logger)
 {
     public const int MaxCommentLength = 2000;
@@ -96,6 +97,13 @@ public sealed class ReviewService(
         return request is null ? Results.NotFound() : Results.Ok(await ToDetailAsync(request, ct));
     }
 
+    /// <summary>The request's status in PostgreSQL next to its Camunda process instance.</summary>
+    public async Task<IResult> WorkflowAsync(long id, CancellationToken ct)
+    {
+        var request = await LoadVisibleAsync(id, ct);
+        return request is null ? Results.NotFound() : Results.Ok(await diagnostics.CheckRequestAsync(request, ct));
+    }
+
     public async Task<IResult> HistoryAsync(long id, CancellationToken ct)
     {
         var request = await LoadVisibleAsync(id, ct);
@@ -143,17 +151,13 @@ public sealed class ReviewService(
 
         try
         {
-            await transitions.ApplyAsync(request, action, reviewer.Id, comment, ct);
-            await db.SaveChangesAsync(ct);
+            await transitions.ApplyAndSaveAsync(request, action, reviewer.Id, comment, ct);
         }
-        catch (InvalidTransitionException)
+        // invalidTransition: not possible in this status (or Camunda already took another decision);
+        // requestChanged: another reviewer changed the status between our read and our write.
+        catch (Exception e) when (WorkflowProblems.From(e, ProblemCodes.InvalidTransition, ProblemCodes.RequestChanged) is { } problem)
         {
-            return Results.Problem(title: ProblemCodes.InvalidTransition, statusCode: 409);
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            // Another reviewer changed the status between our read and our write.
-            return Results.Problem(title: ProblemCodes.RequestChanged, statusCode: 409);
+            return problem;
         }
 
         logger.LogInformation("Request {Number}: {Action} by reviewer {Reviewer}", request.RequestNumber, action, reviewer.Id);
@@ -184,7 +188,9 @@ public sealed class ReviewService(
             applicant, establishment, ExcavationDto.From(r), slots, r.Attachments.InSlotOrder([.. slots, .. letterSlots]),
             await HistoryOfAsync(r, ct),
             workflow.ReviewActions(r.Status).Where(a => SupportedByService(r, a)).ToArray(),
-            letterSlots);
+            letterSlots,
+            new ReviewWorkflowInfo(r.WorkflowInstanceKey is null ? workflow.EngineName : "camunda",
+                r.WorkflowInstanceKey, r.WorkflowDefinitionVersion));
     }
 
     private static bool SupportedByService(ServiceRequest r, RequestAction action)

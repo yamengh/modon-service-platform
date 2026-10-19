@@ -140,6 +140,15 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
 .stat.total { border-block-start-color: var(--green-dark); }
 .status-edge-inProgress { border-block-start-color: var(--blue); }
 .status-edge-returnedForCompletion, .status-edge-awaitingCoordinationLetters { border-block-start-color: #b26a00; }
+
+/* Milestone 5: workflow engine status */
+.workflow-status { margin-block: 0.8rem 1.2rem; border-inline-start: 4px solid var(--green); }
+.workflow-status.bad { border-inline-start-color: var(--danger); }
+.workflow-status h2 { margin-top: 0; font-size: 1.05rem; }
+.pill { display: inline-block; font-size: 0.8rem; padding: 0.1rem 0.6rem; border-radius: 999px; }
+.pill.ok { background: #e8f3ed; color: var(--green-dark); }
+.pill.bad { background: var(--danger-bg); color: var(--danger); }
+.workflow-panel .btn { margin-top: 0.4rem; }
 .status-edge-approved { border-block-start-color: var(--green); }
 .status-edge-rejected, .status-edge-cancelled { border-block-start-color: var(--danger); }
 .filters { display: flex; flex-wrap: wrap; gap: 0 1rem; align-items: flex-end; margin-block-start: 1rem; }

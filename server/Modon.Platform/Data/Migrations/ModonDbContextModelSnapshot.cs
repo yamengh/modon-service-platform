@@ -269,6 +269,7 @@ namespace Modon.Platform.Data.Migrations
                         .HasColumnType("character varying(60)");
 
                     b.Property<string>("Status")
+                        .IsConcurrencyToken()
                         .IsRequired()
                         .HasMaxLength(40)
                         .HasColumnType("character varying(40)");
@@ -279,11 +280,29 @@ namespace Modon.Platform.Data.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("WorkflowCorrelationKey")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("WorkflowDefinitionKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int?>("WorkflowDefinitionVersion")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("WorkflowInstanceKey")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EstablishmentId");
 
                     b.HasIndex("RequestNumber")
+                        .IsUnique();
+
+                    b.HasIndex("WorkflowInstanceKey")
                         .IsUnique();
 
                     b.HasIndex("ApplicantUserId", "CreatedAt");

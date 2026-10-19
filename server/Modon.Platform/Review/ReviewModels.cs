@@ -51,7 +51,11 @@ public sealed record ReviewRequestDetail(
     AttachmentInfo[] Attachments,
     ReviewHistoryItem[] History,
     RequestAction[] AvailableDecisions,
-    AttachmentSlot[] CoordinationLetterSlots);
+    AttachmentSlot[] CoordinationLetterSlots,
+    ReviewWorkflowInfo Workflow);
+
+/// <summary>Which engine handles the request and, for Camunda, the linked process instance (for Operate).</summary>
+public sealed record ReviewWorkflowInfo(string Engine, string? ProcessInstanceKey, int? ProcessDefinitionVersion);
 
 /// <summary>
 /// Body for approve (optional note), return-for-completion (required comment) and

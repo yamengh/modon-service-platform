@@ -2,7 +2,15 @@ import { render } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { App } from "../App";
 import { api } from "../api/client";
-import type { LookupCategory, LookupOption, Me, ReviewQueueItem, ReviewRequestDetail, ReviewSummary } from "../api/types";
+import type {
+  LookupCategory,
+  LookupOption,
+  Me,
+  ReviewQueueItem,
+  ReviewRequestDetail,
+  ReviewSummary,
+  WorkflowStatusReport,
+} from "../api/types";
 import { AuthProvider } from "../auth/AuthContext";
 import { I18nProvider } from "../i18n/I18nContext";
 import type { Lang } from "../i18n/messages";
@@ -55,7 +63,19 @@ export function useReviewerBackend(user: Me = reviewer) {
   ]);
   vi.mocked(api.listLookups).mockImplementation(async (category: LookupCategory) => lookups[category]);
   vi.mocked(api.attachmentUrl).mockImplementation((id: number, slot: string) => `/api/modon/review/requests/${id}/attachments/${slot}`);
+  vi.mocked(api.getWorkflowStatus).mockResolvedValue(workflowReady);
 }
+
+export const workflowReady: WorkflowStatusReport = {
+  engine: "camunda",
+  ready: true,
+  summary: "Camunda 8.9.21 at http://127.0.0.1:8080: process 'modon-excavation-permit' version 2 is deployed.",
+  camunda: {
+    restAddress: "http://127.0.0.1:8080", authStrategy: "NONE", reachable: true, gatewayVersion: "8.9.21", brokers: 1,
+    partitionsHealthy: true, processId: "modon-excavation-permit", processDeployed: true, deployedVersion: 2,
+    deployedVersionTag: "1.0.0", checkedInVersionTag: "1.0.0", processDefinitionKey: "2251799813721445", error: null,
+  },
+};
 
 export const summary: ReviewSummary = {
   total: 9,
@@ -110,6 +130,7 @@ export function reviewDetail(overrides: Partial<ReviewRequestDetail> = {}): Revi
       { fromStatus: "draft", toStatus: "inProgress", action: "submit", occurredAt: "2026-10-15T10:00:00Z", comment: null, actorUserId: "c1", actorEmail: "contractor@modon.local", actorIsApplicant: true },
     ],
     availableDecisions: ["approve", "returnForCompletion", "reject"],
+    workflow: { engine: "camunda", processInstanceKey: "2251799813721500", processDefinitionVersion: 2 },
     coordinationLetterSlots: [
       slot("secCoordinationLetter", "خطاب تنسيق الشركة السعودية للكهرباء", "Saudi Electricity Company coordination letter"),
       slot("nationalGridCoordinationLetter", "خطاب تنسيق الشركة الوطنية لنقل الكهرباء", "National Grid coordination letter"),

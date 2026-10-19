@@ -87,6 +87,9 @@ function ExcavationEditor({ request, options, back }: { request: RequestDetail; 
 
   const handleApiError = (e: unknown, failedKey: MessageKey) => {
     if (e instanceof ApiError && e.status === 400 && Object.keys(e.errors).length) showErrors(e.errors, failedKey);
+    else if (e instanceof ApiError && e.status === 503) setBanner({ kind: "error", text: t("workflowUnavailable") });
+    else if (e instanceof ApiError && e.status === 409 && e.message === "workflowNotStarted")
+      setBanner({ kind: "error", text: t("workflowNotStarted") });
     else if (e instanceof ApiError && e.status === 409) navigate(`/requests/${request.id}`, { replace: true });
     else setBanner({ kind: "error", text: t("genericError") });
   };

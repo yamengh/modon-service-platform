@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../api/client";
 import type { ReviewStatus, ReviewSummary } from "../api/types";
+import { WorkflowStatusCard } from "../components/WorkflowStatusCard";
 import { useI18n } from "../i18n/I18nContext";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; summary: ReviewSummary };
@@ -27,6 +28,7 @@ export function DashboardPage() {
     <main className="page">
       <h1>{t("dashboard")}</h1>
       <p className="muted">{t("dashboardIntro")}</p>
+      <WorkflowStatusCard />
 
       {load.status === "loading" && <p className="status">{t("loading")}</p>}
       {load.status === "error" && (

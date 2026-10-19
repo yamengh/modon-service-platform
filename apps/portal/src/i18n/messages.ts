@@ -147,6 +147,8 @@ const ar = {
   submittedSuccess: "تم تقديم الطلب بنجاح، وحالته الآن «قيد التنفيذ». ستتم مراجعته من مدن.",
   requestLocked: "تم تقديم هذا الطلب ولا يمكن تعديله.",
   genericError: "حدث خطأ غير متوقع. حاول مرة أخرى.",
+  workflowUnavailable: "خدمة سير العمل في مدن غير متاحة حالياً، ولم يُرسَل شيء. تم حفظ بياناتك؛ حاول الإرسال لاحقاً.",
+  workflowNotStarted: "لا يمكن متابعة هذا الطلب إلكترونياً حالياً. تواصل مع مدن.",
   metres: "م",
 
   "err.required": "هذا الحقل مطلوب",
@@ -315,6 +317,8 @@ const en: Record<MessageKey, string> = {
   submittedSuccess: "Your request was submitted and is now “In progress”. Modon will review it.",
   requestLocked: "This request has been submitted and can no longer be edited.",
   genericError: "Something went wrong. Please try again.",
+  workflowUnavailable: "Modon's workflow service is not available right now, so nothing was sent. Your data is saved; please try sending again later.",
+  workflowNotStarted: "This request cannot be continued online right now. Please contact Modon.",
   metres: "m",
 
   "err.required": "This field is required",

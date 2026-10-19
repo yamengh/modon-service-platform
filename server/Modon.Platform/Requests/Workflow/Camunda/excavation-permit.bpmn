@@ -1,0 +1,243 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Modon — Excavation Works Permit (تصريح أعمال الحفر), Camunda 8.9.
+  Started by Modon.Platform when a request is first submitted. Every later step is a message that
+  Modon.Platform correlates by the instance's own "correlationKey" variable (unique per request).
+  Element ids and message names are referenced from ExcavationProcess.cs; keep them in sync.
+  Names are English only: the local Camunda 8.9 bundle garbles non-ASCII element names (UTF-8 read as
+  Windows-1252), so Arabic labels stay in the Modon portals.
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_ModonExcavationPermit"
+                  targetNamespace="http://modon.gov.sa/bpmn/excavation-permit"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.40.0"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:message id="Message_Approved" name="ExcavationApproved">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_Rejected" name="ExcavationRejected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_ReturnedForCompletion" name="ExcavationReturnedForCompletion">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_Resubmitted" name="ExcavationResubmitted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_CoordinationLettersRequested" name="ExcavationCoordinationLettersRequested">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_CoordinationLettersSubmitted" name="ExcavationCoordinationLettersSubmitted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="modon-excavation-permit" name="Modon Excavation Works Permit" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="StartEvent_RequestSubmitted" name="Request submitted">
+      <bpmn:outgoing>Flow_ToReviewMerge</bpmn:outgoing>
+    </bpmn:startEvent>
+
+    <!-- Back to review after a resubmission or after the coordination letters arrive. -->
+    <bpmn:exclusiveGateway id="Gateway_ReviewMerge" name="Back to review">
+      <bpmn:incoming>Flow_ToReviewMerge</bpmn:incoming>
+      <bpmn:incoming>Flow_ResubmittedToReview</bpmn:incoming>
+      <bpmn:incoming>Flow_LettersSubmittedToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToModonReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+
+    <!-- Waiting for Modon's decision (status InProgress). Only the first decision message is consumed. -->
+    <bpmn:eventBasedGateway id="Gateway_ModonReview" name="Modon review">
+      <bpmn:incoming>Flow_ToModonReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToApproved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToRejected</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToReturned</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToLettersRequested</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+
+    <bpmn:intermediateCatchEvent id="Event_Approved" name="Approved">
+      <bpmn:incoming>Flow_ToApproved</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovedToEnd</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_Approved" messageRef="Message_Approved" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_Approved" name="Permit approved">
+      <bpmn:incoming>Flow_ApprovedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="Event_Rejected" name="Rejected">
+      <bpmn:incoming>Flow_ToRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectedToEnd</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_Rejected" messageRef="Message_Rejected" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:endEvent id="End_Rejected" name="Permit rejected">
+      <bpmn:incoming>Flow_RejectedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+
+    <bpmn:intermediateCatchEvent id="Event_ReturnedForCompletion" name="Returned for completion">
+      <bpmn:incoming>Flow_ToReturned</bpmn:incoming>
+      <bpmn:outgoing>Flow_ReturnedToAwaitResubmission</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_ReturnedForCompletion" messageRef="Message_ReturnedForCompletion" />
+    </bpmn:intermediateCatchEvent>
+    <!-- Waiting for the contractor (status ReturnedForCompletion). -->
+    <bpmn:intermediateCatchEvent id="Event_AwaitResubmission" name="Contractor resubmits">
+      <bpmn:incoming>Flow_ReturnedToAwaitResubmission</bpmn:incoming>
+      <bpmn:outgoing>Flow_ResubmittedToReview</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_Resubmitted" messageRef="Message_Resubmitted" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:intermediateCatchEvent id="Event_CoordinationLettersRequested" name="Coordination letters requested">
+      <bpmn:incoming>Flow_ToLettersRequested</bpmn:incoming>
+      <bpmn:outgoing>Flow_LettersRequestedToAwait</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_CoordinationLettersRequested" messageRef="Message_CoordinationLettersRequested" />
+    </bpmn:intermediateCatchEvent>
+    <!-- Waiting for the contractor (status AwaitingCoordinationLetters). -->
+    <bpmn:intermediateCatchEvent id="Event_AwaitCoordinationLetters" name="Contractor sends the letters">
+      <bpmn:incoming>Flow_LettersRequestedToAwait</bpmn:incoming>
+      <bpmn:outgoing>Flow_LettersSubmittedToReview</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_CoordinationLettersSubmitted" messageRef="Message_CoordinationLettersSubmitted" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="Flow_ToReviewMerge" sourceRef="StartEvent_RequestSubmitted" targetRef="Gateway_ReviewMerge" />
+    <bpmn:sequenceFlow id="Flow_ToModonReview" sourceRef="Gateway_ReviewMerge" targetRef="Gateway_ModonReview" />
+    <bpmn:sequenceFlow id="Flow_ToApproved" sourceRef="Gateway_ModonReview" targetRef="Event_Approved" />
+    <bpmn:sequenceFlow id="Flow_ApprovedToEnd" sourceRef="Event_Approved" targetRef="End_Approved" />
+    <bpmn:sequenceFlow id="Flow_ToRejected" sourceRef="Gateway_ModonReview" targetRef="Event_Rejected" />
+    <bpmn:sequenceFlow id="Flow_RejectedToEnd" sourceRef="Event_Rejected" targetRef="End_Rejected" />
+    <bpmn:sequenceFlow id="Flow_ToReturned" sourceRef="Gateway_ModonReview" targetRef="Event_ReturnedForCompletion" />
+    <bpmn:sequenceFlow id="Flow_ReturnedToAwaitResubmission" sourceRef="Event_ReturnedForCompletion" targetRef="Event_AwaitResubmission" />
+    <bpmn:sequenceFlow id="Flow_ResubmittedToReview" sourceRef="Event_AwaitResubmission" targetRef="Gateway_ReviewMerge" />
+    <bpmn:sequenceFlow id="Flow_ToLettersRequested" sourceRef="Gateway_ModonReview" targetRef="Event_CoordinationLettersRequested" />
+    <bpmn:sequenceFlow id="Flow_LettersRequestedToAwait" sourceRef="Event_CoordinationLettersRequested" targetRef="Event_AwaitCoordinationLetters" />
+    <bpmn:sequenceFlow id="Flow_LettersSubmittedToReview" sourceRef="Event_AwaitCoordinationLetters" targetRef="Gateway_ReviewMerge" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ModonExcavationPermit">
+    <bpmndi:BPMNPlane id="BPMNPlane_ModonExcavationPermit" bpmnElement="modon-excavation-permit">
+      <bpmndi:BPMNShape id="Shape_StartEvent_RequestSubmitted" bpmnElement="StartEvent_RequestSubmitted">
+        <dc:Bounds x="152" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="126" y="275" width="88" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ReviewMerge" bpmnElement="Gateway_ReviewMerge" isMarkerVisible="true">
+        <dc:Bounds x="240" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="228" y="195" width="74" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ModonReview" bpmnElement="Gateway_ModonReview">
+        <dc:Bounds x="340" y="225" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="395" y="236" width="80" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_Approved" bpmnElement="Event_Approved">
+        <dc:Bounds x="472" y="62" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="446" y="105" width="88" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Approved" bpmnElement="End_Approved">
+        <dc:Bounds x="632" y="62" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="610" y="105" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_Rejected" bpmnElement="Event_Rejected">
+        <dc:Bounds x="472" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="450" y="195" width="80" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_Rejected" bpmnElement="End_Rejected">
+        <dc:Bounds x="632" y="152" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="612" y="195" width="76" height="14" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ReturnedForCompletion" bpmnElement="Event_ReturnedForCompletion">
+        <dc:Bounds x="472" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="430" y="355" width="120" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_AwaitResubmission" bpmnElement="Event_AwaitResubmission">
+        <dc:Bounds x="632" y="312" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="596" y="355" width="108" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_CoordinationLettersRequested" bpmnElement="Event_CoordinationLettersRequested">
+        <dc:Bounds x="472" y="432" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="425" y="475" width="130" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_AwaitCoordinationLetters" bpmnElement="Event_AwaitCoordinationLetters">
+        <dc:Bounds x="632" y="432" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="590" y="475" width="120" height="40" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+
+      <bpmndi:BPMNEdge id="Edge_Flow_ToReviewMerge" bpmnElement="Flow_ToReviewMerge">
+        <di:waypoint x="188" y="250" />
+        <di:waypoint x="240" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToModonReview" bpmnElement="Flow_ToModonReview">
+        <di:waypoint x="290" y="250" />
+        <di:waypoint x="340" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToApproved" bpmnElement="Flow_ToApproved">
+        <di:waypoint x="365" y="225" />
+        <di:waypoint x="365" y="80" />
+        <di:waypoint x="472" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ApprovedToEnd" bpmnElement="Flow_ApprovedToEnd">
+        <di:waypoint x="508" y="80" />
+        <di:waypoint x="632" y="80" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToRejected" bpmnElement="Flow_ToRejected">
+        <di:waypoint x="365" y="225" />
+        <di:waypoint x="365" y="170" />
+        <di:waypoint x="472" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_RejectedToEnd" bpmnElement="Flow_RejectedToEnd">
+        <di:waypoint x="508" y="170" />
+        <di:waypoint x="632" y="170" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToReturned" bpmnElement="Flow_ToReturned">
+        <di:waypoint x="365" y="275" />
+        <di:waypoint x="365" y="330" />
+        <di:waypoint x="472" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ReturnedToAwaitResubmission" bpmnElement="Flow_ReturnedToAwaitResubmission">
+        <di:waypoint x="508" y="330" />
+        <di:waypoint x="632" y="330" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ResubmittedToReview" bpmnElement="Flow_ResubmittedToReview">
+        <di:waypoint x="668" y="330" />
+        <di:waypoint x="740" y="330" />
+        <di:waypoint x="740" y="560" />
+        <di:waypoint x="265" y="560" />
+        <di:waypoint x="265" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToLettersRequested" bpmnElement="Flow_ToLettersRequested">
+        <di:waypoint x="365" y="275" />
+        <di:waypoint x="365" y="450" />
+        <di:waypoint x="472" y="450" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_LettersRequestedToAwait" bpmnElement="Flow_LettersRequestedToAwait">
+        <di:waypoint x="508" y="450" />
+        <di:waypoint x="632" y="450" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_LettersSubmittedToReview" bpmnElement="Flow_LettersSubmittedToReview">
+        <di:waypoint x="668" y="450" />
+        <di:waypoint x="700" y="450" />
+        <di:waypoint x="700" y="530" />
+        <di:waypoint x="265" y="530" />
+        <di:waypoint x="265" y="275" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

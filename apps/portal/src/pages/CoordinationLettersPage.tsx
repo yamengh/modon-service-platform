@@ -75,6 +75,10 @@ function LettersEditor({ request, back }: { request: RequestDetail; back: ReactN
       if (e instanceof ApiError && e.status === 400 && Object.keys(e.errors).length) {
         setErrors(e.errors);
         setFailed(t("lettersFailed"));
+      } else if (e instanceof ApiError && e.status === 503) {
+        setFailed(t("workflowUnavailable"));
+      } else if (e instanceof ApiError && e.status === 409 && e.message === "workflowNotStarted") {
+        setFailed(t("workflowNotStarted"));
       } else if (e instanceof ApiError && e.status === 409) {
         navigate(`/requests/${request.id}`, { replace: true, state: { changed: true } });
       } else {

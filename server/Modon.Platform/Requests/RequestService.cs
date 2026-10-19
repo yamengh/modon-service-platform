@@ -139,9 +139,16 @@ public sealed class RequestService(
         AddLockedFieldErrors(request, dto, errors);
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        await transitions.ApplyAsync(request, action, user.Id, comment: null, ct);
-        request.SubmittedAt ??= request.UpdatedAt; // the first submission date is kept on resubmission
-        if (await SaveOrConflictAsync(ct, ProblemCodes.RequestNotEditable) is { } conflict) return conflict;
+        try
+        {
+            // The first submission starts the Camunda process; a resubmission continues the same instance.
+            await transitions.ApplyAndSaveAsync(request, action, user.Id, comment: null, ct,
+                r => r.SubmittedAt ??= r.UpdatedAt); // the first submission date is kept on resubmission
+        }
+        catch (Exception e) when (WorkflowProblems.From(e, ProblemCodes.RequestNotEditable, ProblemCodes.RequestNotEditable) is { } problem)
+        {
+            return problem;
+        }
 
         logger.LogInformation("Request {Number}: {Action} by {User}", request.RequestNumber, action, user.Id);
         return Results.Ok(await ToDetailAsync(request, ct));
@@ -160,8 +167,14 @@ public sealed class RequestService(
             .ToDictionary(s => $"attachments.{s.Code}", _ => new[] { ErrorCodes.Required });
         if (errors.Count > 0) return Results.ValidationProblem(errors);
 
-        await transitions.ApplyAsync(request, RequestAction.SubmitCoordinationLetters, user.Id, comment: null, ct);
-        if (await SaveOrConflictAsync(ct, ProblemCodes.RequestNotEditable) is { } conflict) return conflict;
+        try
+        {
+            await transitions.ApplyAndSaveAsync(request, RequestAction.SubmitCoordinationLetters, user.Id, comment: null, ct);
+        }
+        catch (Exception e) when (WorkflowProblems.From(e, ProblemCodes.RequestNotEditable, ProblemCodes.RequestNotEditable) is { } problem)
+        {
+            return problem;
+        }
 
         logger.LogInformation("Request {Number}: coordination letters sent by {User}", request.RequestNumber, user.Id);
         return Results.Ok(await ToDetailAsync(request, ct));

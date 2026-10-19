@@ -57,6 +57,11 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
             e.Property(x => x.Status).HasConversion<string>().HasMaxLength(40).IsConcurrencyToken();
             e.Property(x => x.ApplicantUserId).HasMaxLength(450);
             e.HasIndex(x => new { x.ApplicantUserId, x.CreatedAt });
+            e.Property(x => x.WorkflowInstanceKey).HasMaxLength(32);
+            e.Property(x => x.WorkflowCorrelationKey).HasMaxLength(100);
+            e.Property(x => x.WorkflowDefinitionKey).HasMaxLength(32);
+            // One request per process instance.
+            e.HasIndex(x => x.WorkflowInstanceKey).IsUnique();
             e.HasOne(x => x.Establishment).WithMany().HasForeignKey(x => x.EstablishmentId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Excavation).WithOne().HasForeignKey<ExcavationPermitDetails>(x => x.RequestId);
