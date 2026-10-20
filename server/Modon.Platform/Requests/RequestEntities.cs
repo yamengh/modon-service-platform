@@ -37,11 +37,15 @@ public class ServiceRequest
     public int? WorkflowDefinitionVersion { get; set; }
 
     public ExcavationPermitDetails? Excavation { get; set; }
+    public Building.BuildingLicenceDetails? Building { get; set; }
     public List<RequestAttachment> Attachments { get; set; } = [];
     public List<RequestStatusHistory> History { get; set; } = [];
 }
 
-/// <summary>One row per status change, including creation.</summary>
+/// <summary>
+/// One row per status change, including creation. A building licence's monthly progress reports also add a row
+/// (from Approved to Approved), so the history shows every report next to the decisions.
+/// </summary>
 public class RequestStatusHistory
 {
     public long Id { get; set; }

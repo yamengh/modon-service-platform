@@ -23,6 +23,16 @@ public static class ErrorCodes
     public const string FileTooLarge = "fileTooLarge";
     public const string FileTypeNotAllowed = "fileTypeNotAllowed";
     public const string FileContentMismatch = "fileContentMismatch";
+
+    // Building licence (Milestones 6–8)
+    public const string InvalidFormat = "invalidFormat";
+    public const string TooMany = "tooMany";
+    public const string OutOfRange = "outOfRange";
+    public const string MustBeWholeNumber = "mustBeWholeNumber";
+    public const string DuplicatePhase = "duplicatePhase";
+    public const string NotAnOffice = "notAnOffice";
+    public const string FuturePeriod = "futurePeriod";
+    public const string PeriodBeforeApproval = "periodBeforeApproval";
 }
 
 public enum ValidationMode
@@ -41,6 +51,11 @@ public sealed partial class ExcavationValidator(ModonDbContext db, ILookupServic
 
     [GeneratedRegex(@"^\+?[0-9][0-9 ]{6,18}$")]
     private static partial Regex PhonePattern();
+
+    /// <summary>The same e-mail and phone formats are used by the building licence's contacts.</summary>
+    internal static bool IsEmail(string value) => EmailPattern().IsMatch(value);
+
+    internal static bool IsPhone(string value) => PhonePattern().IsMatch(value);
 
     /// <summary>Returns field → error codes; empty when valid. Expects a normalized DTO.</summary>
     public async Task<Dictionary<string, string[]>> ValidateAsync(

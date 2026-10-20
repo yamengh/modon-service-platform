@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Modon.Platform.Organizations;
 using Modon.Platform.Requests;
+using Modon.Platform.Requests.Building;
 
 namespace Modon.Platform.Data;
 
@@ -18,6 +19,11 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
     public DbSet<ExcavationPermitDetails> ExcavationPermitDetails => Set<ExcavationPermitDetails>();
     public DbSet<Establishment> Establishments => Set<Establishment>();
     public DbSet<EstablishmentMember> EstablishmentMembers => Set<EstablishmentMember>();
+    public DbSet<BuildingLicenceDetails> BuildingLicenceDetails => Set<BuildingLicenceDetails>();
+    public DbSet<BuildingContact> BuildingContacts => Set<BuildingContact>();
+    public DbSet<BuildingTender> BuildingTenders => Set<BuildingTender>();
+    public DbSet<BuildingQuotation> BuildingQuotations => Set<BuildingQuotation>();
+    public DbSet<ProgressReport> ProgressReports => Set<ProgressReport>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
@@ -65,6 +71,7 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
             e.HasOne(x => x.Establishment).WithMany().HasForeignKey(x => x.EstablishmentId)
                 .OnDelete(DeleteBehavior.Restrict);
             e.HasOne(x => x.Excavation).WithOne().HasForeignKey<ExcavationPermitDetails>(x => x.RequestId);
+            e.HasOne(x => x.Building).WithOne().HasForeignKey<BuildingLicenceDetails>(x => x.RequestId);
             e.HasMany(x => x.Attachments).WithOne().HasForeignKey(x => x.RequestId);
             e.HasMany(x => x.History).WithOne().HasForeignKey(x => x.RequestId);
         });
@@ -105,6 +112,92 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
             e.Property(x => x.ProjectManagerPhone).HasMaxLength(ExcavationLimits.Phone);
             e.Property(x => x.ProjectManagerEmail).HasMaxLength(ExcavationLimits.ShortText);
             e.Property(x => x.SupervisingEntity).HasMaxLength(ExcavationLimits.ShortText);
+        });
+
+        ConfigureBuilding(b);
+    }
+
+    private static void ConfigureBuilding(ModelBuilder b)
+    {
+        b.Entity<BuildingLicenceDetails>(e =>
+        {
+            e.ToTable("modon_building_licence_details");
+            e.HasKey(x => x.RequestId);
+            e.Property(x => x.ContractNumber).HasMaxLength(BuildingLicence.ContractNumberLength);
+            e.Property(x => x.LicenceTypeCode).HasMaxLength(60);
+            e.Property(x => x.ScopeOfWork).HasMaxLength(BuildingLicence.LongText);
+            e.Property(x => x.Notes).HasMaxLength(BuildingLicence.LongText);
+            e.HasMany(x => x.Contacts).WithOne().HasForeignKey(x => x.RequestId);
+        });
+
+        b.Entity<BuildingContact>(e =>
+        {
+            e.ToTable("modon_building_contacts");
+            e.Property(x => x.Name).HasMaxLength(BuildingLicence.ShortText);
+            e.Property(x => x.Email).HasMaxLength(BuildingLicence.ShortText);
+            e.Property(x => x.Mobile).HasMaxLength(BuildingLicence.Phone);
+            e.HasIndex(x => x.RequestId);
+        });
+
+        b.Entity<BuildingTender>(e =>
+        {
+            e.ToTable("modon_building_tenders");
+            e.Property(x => x.Stage).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Mode).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Number).HasMaxLength(40);
+            e.HasIndex(x => x.Number).IsUnique();
+            e.Property(x => x.OpenedByUserId).HasMaxLength(450);
+            e.HasIndex(x => new { x.RequestId, x.Stage });
+            e.HasIndex(x => new { x.Stage, x.State });
+            e.HasOne<ServiceRequest>().WithMany().HasForeignKey(x => x.RequestId);
+            e.HasOne<Establishment>().WithMany().HasForeignKey(x => x.InvitedEstablishmentId).OnDelete(DeleteBehavior.Restrict);
+            e.HasMany(x => x.Quotations).WithOne().HasForeignKey(x => x.TenderId);
+        });
+
+        b.Entity<BuildingQuotation>(e =>
+        {
+            e.ToTable("modon_building_quotations");
+            // One answer per office per round.
+            e.HasIndex(x => new { x.TenderId, x.EstablishmentId }).IsUnique();
+            e.HasIndex(x => x.RequestId);
+            e.Property(x => x.State).HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
+            e.Property(x => x.Comment).HasMaxLength(BuildingLicence.LongText);
+            e.Property(x => x.AttachmentFileName).HasMaxLength(255);
+            e.Property(x => x.AttachmentContentType).HasMaxLength(100);
+            e.Property(x => x.AttachmentStorageKey).HasMaxLength(300);
+            e.HasOne(x => x.Establishment).WithMany().HasForeignKey(x => x.EstablishmentId).OnDelete(DeleteBehavior.Restrict);
+            e.OwnsMany(x => x.Phases, p =>
+            {
+                p.ToTable("modon_building_quotation_phases");
+                p.WithOwner().HasForeignKey(x => x.QuotationId);
+                p.HasKey(x => new { x.QuotationId, x.Phase });
+                p.Property(x => x.Phase).HasConversion<string>().HasMaxLength(40);
+                p.Property(x => x.SharePercent).HasPrecision(5, 2);
+            });
+        });
+
+        b.Entity<ProgressReport>(e =>
+        {
+            e.ToTable("modon_building_progress_reports");
+            // One report per calendar month per request.
+            e.HasIndex(x => new { x.RequestId, x.PeriodYear, x.PeriodMonth }).IsUnique();
+            e.Property(x => x.SubmittedByUserId).HasMaxLength(450);
+            e.Property(x => x.Comment).HasMaxLength(BuildingLicence.LongText);
+            e.Property(x => x.AttachmentFileName).HasMaxLength(255);
+            e.Property(x => x.AttachmentContentType).HasMaxLength(100);
+            e.Property(x => x.AttachmentStorageKey).HasMaxLength(300);
+            e.HasOne<ServiceRequest>().WithMany().HasForeignKey(x => x.RequestId);
+            e.HasOne(x => x.Establishment).WithMany().HasForeignKey(x => x.EstablishmentId).OnDelete(DeleteBehavior.Restrict);
+            e.OwnsMany(x => x.Phases, p =>
+            {
+                p.ToTable("modon_building_progress_report_phases");
+                p.WithOwner().HasForeignKey(x => x.ReportId);
+                p.HasKey(x => new { x.ReportId, x.Phase });
+                p.Property(x => x.Phase).HasConversion<string>().HasMaxLength(40);
+                p.Property(x => x.CompletionPercent).HasPrecision(5, 2);
+            });
         });
     }
 

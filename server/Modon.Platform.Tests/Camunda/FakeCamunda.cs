@@ -2,13 +2,15 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Modon.Platform.Requests.Workflow.Camunda;
 
 namespace Modon.Platform.Tests.Camunda;
 
 /// <summary>
 /// An in-memory stand-in for the Camunda 8.9 Orchestration Cluster REST API (<c>/v2</c>), used as the SDK's
 /// HTTP handler. Response shapes copy what the local 8.9.21 cluster returned; process behaviour comes from
-/// the checked-in BPMN (<see cref="BpmnModel"/>). Faults can be injected to test failure handling.
+/// the checked-in BPMNs (<see cref="BpmnModel"/>; excavation permit and building licence). Faults can be injected
+/// to test failure handling.
 /// Live behaviour is checked separately against the real cluster (see MODON.md).
 /// </summary>
 public sealed class FakeCamunda : HttpMessageHandler
@@ -16,8 +18,14 @@ public sealed class FakeCamunda : HttpMessageHandler
     public const string Address = "http://camunda.test:8080";
     public const string GatewayVersion = "8.9.21";
     public const string DefinitionKey = "2251799813700001";
+    public const string BuildingDefinitionKey = "2251799813700002";
 
-    private readonly BpmnModel _model = BpmnModel.Load();
+    /// <summary>The deployed processes: id → (model, version, definition key).</summary>
+    private readonly Dictionary<string, (BpmnModel Model, int Version, string Key)> _processes = new()
+    {
+        [ExcavationProcess.DefaultProcessId] = (BpmnModel.Load(), 2, DefinitionKey),
+        [BuildingLicenceProcess.DefaultProcessId] = (BpmnModel.Load(BuildingLicenceProcess.Contract), 1, BuildingDefinitionKey),
+    };
     private readonly object _lock = new();
     private readonly Dictionary<string, Instance> _instances = new();
     private long _nextKey = 2251799813710000;
@@ -36,6 +44,7 @@ public sealed class FakeCamunda : HttpMessageHandler
     {
         public required string Key { get; init; }
         public required string BusinessId { get; init; }
+        public required string ProcessId { get; init; }
         public required JsonObject Variables { get; init; }
         public required DateTimeOffset Started { get; init; }
         public string State { get; set; } = "ACTIVE";
@@ -52,8 +61,11 @@ public sealed class FakeCamunda : HttpMessageHandler
     /// <summary>When true every call fails like an unreachable host.</summary>
     public bool Down { get; set; }
 
-    /// <summary>When false the process is "not deployed": create returns 404, the definition search is empty.</summary>
+    /// <summary>When false no process is "deployed": create returns 404, the definition search is empty.</summary>
     public bool Deployed { get; set; } = true;
+
+    /// <summary>Process ids that are "not deployed" even while <see cref="Deployed"/> is true.</summary>
+    public HashSet<string> NotDeployed { get; } = [];
 
     /// <summary>Next call whose path contains the key: answer with this status (and do nothing).</summary>
     public Dictionary<string, HttpStatusCode> FailNext { get; } = new();
@@ -75,6 +87,7 @@ public sealed class FakeCamunda : HttpMessageHandler
         {
             Down = false;
             Deployed = true;
+            NotDeployed.Clear();
             FailNext.Clear();
             LoseResponseOfNext.Clear();
             Delay = TimeSpan.Zero;
@@ -155,13 +168,17 @@ public sealed class FakeCamunda : HttpMessageHandler
 
                 case ("POST", "process-definitions/search"):
                     var definitions = new JsonArray();
-                    if (Deployed && FilterValue(body?["filter"]?["processDefinitionId"]) == _model.ProcessId)
+                    var wanted = FilterValue(body?["filter"]?["processDefinitionId"]);
+                    if (wanted is not null && IsDeployed(wanted))
+                    {
+                        var (model, version, definitionKey) = _processes[wanted];
                         definitions.Add(new JsonObject
                         {
-                            ["name"] = "Modon Excavation Works Permit", ["resourceName"] = "excavation-permit.bpmn", ["version"] = 2,
-                            ["versionTag"] = _model.VersionTag, ["processDefinitionId"] = _model.ProcessId, ["tenantId"] = "<default>",
-                            ["processDefinitionKey"] = DefinitionKey, ["hasStartForm"] = false, ["state"] = "ACTIVE",
+                            ["name"] = model.ProcessName, ["resourceName"] = model.ProcessId + ".bpmn", ["version"] = version,
+                            ["versionTag"] = model.VersionTag, ["processDefinitionId"] = model.ProcessId, ["tenantId"] = "<default>",
+                            ["processDefinitionKey"] = definitionKey, ["hasStartForm"] = false, ["state"] = "ACTIVE",
                         });
+                    }
                     return Json(Page(definitions));
 
                 case ("POST", "process-instances"):
@@ -205,27 +222,29 @@ public sealed class FakeCamunda : HttpMessageHandler
     private HttpResponseMessage CreateInstance(JsonNode body)
     {
         var processId = (string?)body["processDefinitionId"];
-        if (!Deployed || processId != _model.ProcessId)
+        if (processId is null || !IsDeployed(processId))
             return Problem(HttpStatusCode.NotFound, "NOT_FOUND",
                 $"Command 'CREATE' rejected with code 'NOT_FOUND': Expected to find process definition with process ID '{processId}', but none found");
+        var (model, version, definitionKey) = _processes[processId];
 
         var instance = new Instance
         {
             Key = NewKey(),
             BusinessId = (string?)body["businessId"] ?? "",
+            ProcessId = processId,
             Variables = body["variables"]?.DeepClone() as JsonObject ?? new JsonObject(),
             Started = DateTimeOffset.UtcNow,
         };
         _instances[instance.Key] = instance;
         var now = DateTimeOffset.UtcNow;
-        instance.Visits.Add(new Visit { Key = NewKey(), ElementId = _model.StartEventId, Type = "START_EVENT", Start = now, End = now });
-        Run(instance, _model.StartEventId);
+        instance.Visits.Add(new Visit { Key = NewKey(), ElementId = model.StartEventId, Type = "START_EVENT", Start = now, End = now });
+        Run(instance, model.StartEventId);
         AfterCreate?.Invoke(instance.Key);
 
         return Json(new JsonObject
         {
-            ["processDefinitionId"] = _model.ProcessId, ["processDefinitionVersion"] = 2, ["tenantId"] = "<default>",
-            ["variables"] = new JsonObject(), ["processDefinitionKey"] = DefinitionKey, ["processInstanceKey"] = instance.Key,
+            ["processDefinitionId"] = model.ProcessId, ["processDefinitionVersion"] = version, ["tenantId"] = "<default>",
+            ["variables"] = new JsonObject(), ["processDefinitionKey"] = definitionKey, ["processInstanceKey"] = instance.Key,
             ["tags"] = new JsonArray(), ["businessId"] = instance.BusinessId,
         });
     }
@@ -236,7 +255,7 @@ public sealed class FakeCamunda : HttpMessageHandler
         foreach (var instance in _instances.Values.Where(i => i.State == "ACTIVE" && i.CorrelationKey == correlationKey).OrderBy(i => i.Started))
         {
             var waiting = instance.Waiting!;
-            if (!_model.AcceptedMessages(waiting.ElementId).TryGetValue(name, out var catchEvent)) continue;
+            if (!ModelOf(instance).AcceptedMessages(waiting.ElementId).TryGetValue(name, out var catchEvent)) continue;
 
             var now = DateTimeOffset.UtcNow;
             waiting.End = now;
@@ -251,7 +270,7 @@ public sealed class FakeCamunda : HttpMessageHandler
 
     private void Run(Instance instance, string fromId)
     {
-        var path = _model.RunFrom(fromId);
+        var path = ModelOf(instance).RunFrom(fromId);
         foreach (var element in path)
         {
             var now = DateTimeOffset.UtcNow;
@@ -264,6 +283,10 @@ public sealed class FakeCamunda : HttpMessageHandler
 
     private string NewKey() => (_nextKey++).ToString();
 
+    private bool IsDeployed(string processId) => Deployed && _processes.ContainsKey(processId) && !NotDeployed.Contains(processId);
+
+    private BpmnModel ModelOf(Instance i) => _processes[i.ProcessId].Model;
+
     /// <summary>A search filter value, sent either plain or as an advanced filter <c>{"$eq": ...}</c>.</summary>
     private static string? FilterValue(JsonNode? filter) => filter switch
     {
@@ -274,22 +297,22 @@ public sealed class FakeCamunda : HttpMessageHandler
 
     private JsonObject InstanceJson(Instance i) => new()
     {
-        ["processDefinitionId"] = _model.ProcessId, ["processDefinitionName"] = "Modon Excavation Works Permit",
-        ["processDefinitionVersion"] = 2, ["processDefinitionVersionTag"] = _model.VersionTag,
+        ["processDefinitionId"] = i.ProcessId, ["processDefinitionName"] = ModelOf(i).ProcessName,
+        ["processDefinitionVersion"] = _processes[i.ProcessId].Version, ["processDefinitionVersionTag"] = ModelOf(i).VersionTag,
         ["startDate"] = i.Started.ToString("O"),
         ["endDate"] = i.State == "ACTIVE" ? null : i.Visits.Last().End?.ToString("O"),
         ["state"] = i.State, ["hasIncident"] = false, ["tenantId"] = "<default>", ["processInstanceKey"] = i.Key,
-        ["processDefinitionKey"] = DefinitionKey, ["parentProcessInstanceKey"] = null, ["parentElementInstanceKey"] = null,
+        ["processDefinitionKey"] = _processes[i.ProcessId].Key, ["parentProcessInstanceKey"] = null, ["parentElementInstanceKey"] = null,
         ["rootProcessInstanceKey"] = i.Key, ["tags"] = new JsonArray(), ["businessId"] = i.BusinessId,
     };
 
     private JsonObject VisitJson(Instance i, Visit v) => new()
     {
-        ["processDefinitionId"] = _model.ProcessId, ["startDate"] = v.Start.ToString("O"), ["endDate"] = v.End?.ToString("O"),
+        ["processDefinitionId"] = i.ProcessId, ["startDate"] = v.Start.ToString("O"), ["endDate"] = v.End?.ToString("O"),
         ["elementId"] = v.ElementId, ["elementName"] = v.ElementId, ["type"] = v.Type,
         ["state"] = i.State == "TERMINATED" && v.End is not null && v == i.Visits.Last() ? "TERMINATED" : v.State,
         ["hasIncident"] = false, ["tenantId"] = "<default>", ["elementInstanceKey"] = v.Key, ["processInstanceKey"] = i.Key,
-        ["rootProcessInstanceKey"] = i.Key, ["processDefinitionKey"] = DefinitionKey, ["incidentKey"] = null,
+        ["rootProcessInstanceKey"] = i.Key, ["processDefinitionKey"] = _processes[i.ProcessId].Key, ["incidentKey"] = null,
     };
 
     private static JsonObject Page(JsonArray items) => new()

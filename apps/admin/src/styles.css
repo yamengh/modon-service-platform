@@ -167,3 +167,27 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
 .doc-label { display: block; font-size: 0.85rem; color: var(--muted); }
 .history-comment { white-space: pre-line; background: #fafbfc; border: 1px solid var(--line); border-radius: 6px; padding: 0.4rem 0.6rem; }
 @media (min-width: 761px) { .detail { grid-template-columns: 1fr 360px; } }
+
+/* Building licence (Milestones 6–8) */
+.status-consultantSelection, .status-contractorSelection { background: #fff4e0; color: var(--warn); }
+.status-consultantTender, .status-contractorTender,
+.status-awaitingConsultantDecision, .status-awaitingContractorDecision { background: #f1ecfa; color: #5b3e96; }
+.status-underModonReview { background: #e6f0f6; color: var(--blue); }
+.status-edge-consultantSelection, .status-edge-contractorSelection { border-block-start-color: #b26a00; }
+.status-edge-consultantTender, .status-edge-contractorTender,
+.status-edge-awaitingConsultantDecision, .status-edge-awaitingContractorDecision { border-block-start-color: #5b3e96; }
+.status-edge-underModonReview { border-block-start-color: var(--blue); }
+.subhead { font-size: 0.95rem; margin: 1rem 0 0.5rem; }
+.pre { white-space: pre-line; }
+table.plain { width: 100%; border-collapse: collapse; }
+table.plain th, table.plain td { text-align: start; padding: 0.45rem 0.6rem; border-block-end: 1px solid var(--line); }
+table.plain th { font-size: 0.8rem; color: var(--muted); }
+.progress-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+.progress-list li { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.75rem; align-items: center; }
+.progress-bar { display: block; block-size: 0.6rem; background: #eef1f4; border-radius: 999px; overflow: hidden; }
+.progress-bar span { display: block; block-size: 100%; background: var(--green); }
+.report { border-inline-start: 3px solid var(--green); padding-inline-start: 0.75rem; margin-block-end: 0.75rem; }
+.report p { margin: 0.2rem 0; }
+.report-phases { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.85rem; }
+.rounds { padding-inline-start: 1.2rem; }
+.rounds > li { margin-block-end: 0.75rem; }

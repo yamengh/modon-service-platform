@@ -35,6 +35,12 @@ namespace Modon.Platform.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<bool>("IsConsultingOffice")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsContractor")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("NameAr")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -67,6 +73,267 @@ namespace Modon.Platform.Data.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("modon_establishment_members", (string)null);
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingContact", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Mobile")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RequestId");
+
+                    b.ToTable("modon_building_contacts", (string)null);
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingLicenceDetails", b =>
+                {
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<decimal?>("ConstructionBudgetSar")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("ContractNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int?>("FloorCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LicenceTypeCode")
+                        .HasMaxLength(60)
+                        .HasColumnType("character varying(60)");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("ScopeOfWork")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<long?>("SelectedConsultantEstablishmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long?>("SelectedContractorEstablishmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("TermsAccepted")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("RequestId");
+
+                    b.ToTable("modon_building_licence_details", (string)null);
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingQuotation", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<decimal?>("AmountSar")
+                        .HasPrecision(12, 2)
+                        .HasColumnType("numeric(12,2)");
+
+                    b.Property<string>("AttachmentContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AttachmentFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<long?>("AttachmentSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AttachmentStorageKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("CommitmentsAccepted")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("EstablishmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<long>("TenderId")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstablishmentId");
+
+                    b.HasIndex("RequestId");
+
+                    b.HasIndex("TenderId", "EstablishmentId")
+                        .IsUnique();
+
+                    b.ToTable("modon_building_quotations", (string)null);
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingTender", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long?>("InvitedEstablishmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Number")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("OpenedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("Stage")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvitedEstablishmentId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("RequestId", "Stage");
+
+                    b.HasIndex("Stage", "State");
+
+                    b.ToTable("modon_building_tenders", (string)null);
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.ProgressReport", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AttachmentContentType")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("AttachmentFileName")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<long?>("AttachmentSizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("AttachmentStorageKey")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<string>("Comment")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<long>("EstablishmentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("PeriodMonth")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PeriodYear")
+                        .HasColumnType("integer");
+
+                    b.Property<long>("RequestId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("SubmittedByUserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("character varying(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EstablishmentId");
+
+                    b.HasIndex("RequestId", "PeriodYear", "PeriodMonth")
+                        .IsUnique();
+
+                    b.ToTable("modon_building_progress_reports", (string)null);
                 });
 
             modelBuilder.Entity("Modon.Platform.Requests.ExcavationPermitDetails", b =>
@@ -321,6 +588,121 @@ namespace Modon.Platform.Data.Migrations
                     b.Navigation("Establishment");
                 });
 
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingContact", b =>
+                {
+                    b.HasOne("Modon.Platform.Requests.Building.BuildingLicenceDetails", null)
+                        .WithMany("Contacts")
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingLicenceDetails", b =>
+                {
+                    b.HasOne("Modon.Platform.Requests.ServiceRequest", null)
+                        .WithOne("Building")
+                        .HasForeignKey("Modon.Platform.Requests.Building.BuildingLicenceDetails", "RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingQuotation", b =>
+                {
+                    b.HasOne("Modon.Platform.Organizations.Establishment", "Establishment")
+                        .WithMany()
+                        .HasForeignKey("EstablishmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Modon.Platform.Requests.Building.BuildingTender", null)
+                        .WithMany("Quotations")
+                        .HasForeignKey("TenderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("Modon.Platform.Requests.Building.QuotationPhase", "Phases", b1 =>
+                        {
+                            b1.Property<long>("QuotationId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("Phase")
+                                .HasMaxLength(40)
+                                .HasColumnType("character varying(40)");
+
+                            b1.Property<int>("DurationDays")
+                                .HasColumnType("integer");
+
+                            b1.Property<decimal>("SharePercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("numeric(5,2)");
+
+                            b1.HasKey("QuotationId", "Phase");
+
+                            b1.ToTable("modon_building_quotation_phases", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("QuotationId");
+                        });
+
+                    b.Navigation("Establishment");
+
+                    b.Navigation("Phases");
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingTender", b =>
+                {
+                    b.HasOne("Modon.Platform.Organizations.Establishment", null)
+                        .WithMany()
+                        .HasForeignKey("InvitedEstablishmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Modon.Platform.Requests.ServiceRequest", null)
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.ProgressReport", b =>
+                {
+                    b.HasOne("Modon.Platform.Organizations.Establishment", "Establishment")
+                        .WithMany()
+                        .HasForeignKey("EstablishmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Modon.Platform.Requests.ServiceRequest", null)
+                        .WithMany()
+                        .HasForeignKey("RequestId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.OwnsMany("Modon.Platform.Requests.Building.ProgressReportPhase", "Phases", b1 =>
+                        {
+                            b1.Property<long>("ReportId")
+                                .HasColumnType("bigint");
+
+                            b1.Property<string>("Phase")
+                                .HasMaxLength(40)
+                                .HasColumnType("character varying(40)");
+
+                            b1.Property<decimal>("CompletionPercent")
+                                .HasPrecision(5, 2)
+                                .HasColumnType("numeric(5,2)");
+
+                            b1.HasKey("ReportId", "Phase");
+
+                            b1.ToTable("modon_building_progress_report_phases", (string)null);
+
+                            b1.WithOwner()
+                                .HasForeignKey("ReportId");
+                        });
+
+                    b.Navigation("Establishment");
+
+                    b.Navigation("Phases");
+                });
+
             modelBuilder.Entity("Modon.Platform.Requests.ExcavationPermitDetails", b =>
                 {
                     b.HasOne("Modon.Platform.Requests.ServiceRequest", null)
@@ -363,9 +745,21 @@ namespace Modon.Platform.Data.Migrations
                     b.Navigation("Members");
                 });
 
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingLicenceDetails", b =>
+                {
+                    b.Navigation("Contacts");
+                });
+
+            modelBuilder.Entity("Modon.Platform.Requests.Building.BuildingTender", b =>
+                {
+                    b.Navigation("Quotations");
+                });
+
             modelBuilder.Entity("Modon.Platform.Requests.ServiceRequest", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("Building");
 
                     b.Navigation("Excavation");
 

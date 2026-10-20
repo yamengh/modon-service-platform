@@ -52,7 +52,8 @@ public sealed record ReviewRequestDetail(
     ReviewHistoryItem[] History,
     RequestAction[] AvailableDecisions,
     AttachmentSlot[] CoordinationLetterSlots,
-    ReviewWorkflowInfo Workflow);
+    ReviewWorkflowInfo Workflow,
+    Requests.Building.BuildingView? Building = null);
 
 /// <summary>Which engine handles the request and, for Camunda, the linked process instance (for Operate).</summary>
 public sealed record ReviewWorkflowInfo(string Engine, string? ProcessInstanceKey, int? ProcessDefinitionVersion);

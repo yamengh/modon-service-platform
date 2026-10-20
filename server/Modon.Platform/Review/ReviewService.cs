@@ -6,6 +6,7 @@ using Modon.Platform.Catalog;
 using Modon.Platform.Data;
 using Modon.Platform.Documents;
 using Modon.Platform.Requests;
+using Modon.Platform.Requests.Building;
 using Modon.Platform.Requests.Workflow;
 
 namespace Modon.Platform.Review;
@@ -23,6 +24,7 @@ public sealed class ReviewService(
     ServiceCatalogNames serviceNames,
     IPrivateDocumentStore documents,
     WorkflowDiagnostics diagnostics,
+    BuildingService building,
     ILogger<ReviewService> logger)
 {
     public const int MaxCommentLength = 2000;
@@ -119,6 +121,10 @@ public sealed class ReviewService(
         return Results.File(stream, attachment!.ContentType, attachment.FileName);
     }
 
+    /// <summary>A building licence's quotation or progress-report attachment.</summary>
+    public async Task<IResult> BuildingFileAsync(long id, string kind, long fileOwnerId, CancellationToken ct)
+        => await Visible().AnyAsync(r => r.Id == id, ct) ? await building.RequestFileAsync(id, kind, fileOwnerId, ct) : Results.NotFound();
+
     public Task<IResult> ApproveAsync(UserAccess reviewer, long id, CommentBody body, CancellationToken ct)
         => DecideAsync(reviewer, id, RequestAction.Approve, "comment", body.Comment, textRequired: false, ct);
 
@@ -169,6 +175,7 @@ public sealed class ReviewService(
     private Task<ServiceRequest?> LoadVisibleAsync(long id, CancellationToken ct)
         => Visible()
             .Include(r => r.Excavation)
+            .Include(r => r.Building).ThenInclude(b => b!.Contacts)
             .Include(r => r.Establishment)
             .Include(r => r.Attachments)
             .Include(r => r.History)
@@ -190,7 +197,8 @@ public sealed class ReviewService(
             workflow.ReviewActions(r.Status).Where(a => SupportedByService(r, a)).ToArray(),
             letterSlots,
             new ReviewWorkflowInfo(r.WorkflowInstanceKey is null ? workflow.EngineName : "camunda",
-                r.WorkflowInstanceKey, r.WorkflowDefinitionVersion));
+                r.WorkflowInstanceKey, r.WorkflowDefinitionVersion),
+            r.ServiceCode == ServiceCatalogData.BuildingLicenceCode ? await building.ViewAsync(r, forInvestor: false, ct) : null);
     }
 
     private static bool SupportedByService(ServiceRequest r, RequestAction action)

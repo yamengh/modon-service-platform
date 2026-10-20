@@ -18,6 +18,7 @@ export function Layout() {
           <NavLink to="/services">{t("modonServices")}</NavLink>
           <NavLink to="/requests">{t("myRequests")}</NavLink>
           <NavLink to="/tasks">{t("tasks")}</NavLink>
+          {user?.personas.some((p) => p === "consultant" || p === "contractor") && <NavLink to="/projects">{t("projects")}</NavLink>}
         </nav>
         <div className="topbar-end">
           <button type="button" className="link-btn" onClick={toggleLang}>

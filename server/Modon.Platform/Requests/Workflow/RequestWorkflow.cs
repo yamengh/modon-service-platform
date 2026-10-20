@@ -1,3 +1,5 @@
+using Modon.Platform.Catalog;
+
 namespace Modon.Platform.Requests.Workflow;
 
 public sealed class InvalidTransitionException(RequestStatus from, RequestAction action)
@@ -10,7 +12,8 @@ public sealed class InvalidTransitionException(RequestStatus from, RequestAction
 /// <summary>
 /// Decides how a request's status changes. Two implementations exist: <see cref="InProcessRequestWorkflow"/>
 /// (rules only; used by the automated tests and as the local fallback) and
-/// <see cref="Camunda.CamundaRequestWorkflow"/> (the same rules, driven through the excavation BPMN in Camunda 8).
+/// <see cref="Camunda.CamundaRequestWorkflow"/> (the same rules, driven through each service's BPMN in Camunda 8).
+/// The rules are per service: the excavation permit and the building licence have separate lifecycles.
 /// Callers never set <see cref="ServiceRequest.Status"/> directly — they go through
 /// <see cref="RequestTransitions"/>, which asks the workflow, writes the history row and saves.
 /// </summary>
@@ -77,7 +80,8 @@ public sealed class WorkflowNotStartedException(string requestNumber)
 
 public sealed class InProcessRequestWorkflow : IRequestWorkflow
 {
-    private static readonly Dictionary<(RequestStatus, RequestAction), RequestStatus> Transitions = new()
+    /// <summary>Excavation works permit (Milestones 2–4).</summary>
+    private static readonly Dictionary<(RequestStatus, RequestAction), RequestStatus> Excavation = new()
     {
         // Applicant
         [(RequestStatus.Draft, RequestAction.Submit)] = RequestStatus.InProgress,
@@ -89,6 +93,39 @@ public sealed class InProcessRequestWorkflow : IRequestWorkflow
         [(RequestStatus.InProgress, RequestAction.Reject)] = RequestStatus.Rejected,
         [(RequestStatus.InProgress, RequestAction.ReturnForCompletion)] = RequestStatus.ReturnedForCompletion,
         [(RequestStatus.InProgress, RequestAction.RequestCoordinationLetters)] = RequestStatus.AwaitingCoordinationLetters,
+    };
+
+    /// <summary>Building licence (Milestones 6–8), from the building-licence user manual (January 2026).</summary>
+    private static readonly Dictionary<(RequestStatus, RequestAction), RequestStatus> Building = new()
+    {
+        // Investor: basic information, then the consulting office (open project or a specific office)
+        [(RequestStatus.Draft, RequestAction.Submit)] = RequestStatus.ConsultantSelection,
+        [(RequestStatus.ConsultantSelection, RequestAction.OpenConsultantTender)] = RequestStatus.ConsultantTender,
+        [(RequestStatus.ConsultantSelection, RequestAction.SelectConsultant)] = RequestStatus.AwaitingConsultantDecision,
+        [(RequestStatus.ConsultantTender, RequestAction.AcceptConsultantQuotation)] = RequestStatus.ContractorSelection,
+        [(RequestStatus.ConsultantTender, RequestAction.RejectConsultantQuotations)] = RequestStatus.ConsultantSelection,
+        // The specific office answers; a rejection sends the investor back to choosing (manual 1.4.5)
+        [(RequestStatus.AwaitingConsultantDecision, RequestAction.ConsultantAccepted)] = RequestStatus.ContractorSelection,
+        [(RequestStatus.AwaitingConsultantDecision, RequestAction.ConsultantDeclined)] = RequestStatus.ConsultantSelection,
+
+        // Contractor stage, same shape; it ends with the industrial-city officer (manual 1.7.5)
+        [(RequestStatus.ContractorSelection, RequestAction.OpenContractorTender)] = RequestStatus.ContractorTender,
+        [(RequestStatus.ContractorSelection, RequestAction.SelectContractor)] = RequestStatus.AwaitingContractorDecision,
+        [(RequestStatus.ContractorTender, RequestAction.AcceptContractorQuotation)] = RequestStatus.UnderModonReview,
+        [(RequestStatus.ContractorTender, RequestAction.RejectContractorQuotations)] = RequestStatus.ContractorSelection,
+        [(RequestStatus.AwaitingContractorDecision, RequestAction.ContractorAccepted)] = RequestStatus.UnderModonReview,
+        [(RequestStatus.AwaitingContractorDecision, RequestAction.ContractorDeclined)] = RequestStatus.ContractorSelection,
+
+        // Reviewer (final), then monthly progress reports while the licence is approved
+        [(RequestStatus.UnderModonReview, RequestAction.Approve)] = RequestStatus.Approved,
+        [(RequestStatus.UnderModonReview, RequestAction.Reject)] = RequestStatus.Rejected,
+        [(RequestStatus.Approved, RequestAction.SubmitProgressReport)] = RequestStatus.Approved,
+    };
+
+    private static readonly Dictionary<string, Dictionary<(RequestStatus, RequestAction), RequestStatus>> ByService = new()
+    {
+        [ServiceCatalogData.ExcavationPermitCode] = Excavation,
+        [ServiceCatalogData.BuildingLicenceCode] = Building,
     };
 
     private static readonly RequestAction[] ReviewerActions =
@@ -109,8 +146,9 @@ public sealed class InProcessRequestWorkflow : IRequestWorkflow
 
     public bool IsVisibleToReviewers(RequestStatus status) => status != RequestStatus.Draft;
 
+    /// <summary>Apart from Draft and the final statuses, each service has its own statuses, so the status alone decides.</summary>
     public IReadOnlyList<RequestAction> ReviewActions(RequestStatus status)
-        => ReviewerActions.Where(a => Transitions.ContainsKey((status, a))).ToArray();
+        => ReviewerActions.Where(a => ByService.Values.Any(t => t.ContainsKey((status, a)))).ToArray();
 
     public bool IsApplicantTask(RequestStatus status)
         => status is RequestStatus.ReturnedForCompletion or RequestStatus.AwaitingCoordinationLetters;
@@ -122,12 +160,22 @@ public sealed class InProcessRequestWorkflow : IRequestWorkflow
         _ => null,
     };
 
-    /// <summary>The next status for <paramref name="action"/> from <paramref name="from"/>, or throws <see cref="InvalidTransitionException"/>.</summary>
+    /// <summary>The excavation lifecycle's next status (kept for the excavation contract tests).</summary>
     public RequestStatus NextStatus(RequestStatus from, RequestAction action)
-        => Transitions.TryGetValue((from, action), out var next) ? next : throw new InvalidTransitionException(from, action);
+        => NextStatus(ServiceCatalogData.ExcavationPermitCode, from, action);
+
+    /// <summary>The next status for <paramref name="action"/> in the service's lifecycle, or throws <see cref="InvalidTransitionException"/>.</summary>
+    public RequestStatus NextStatus(string serviceCode, RequestStatus from, RequestAction action)
+        => ByService.TryGetValue(serviceCode, out var table) && table.TryGetValue((from, action), out var next)
+            ? next
+            : throw new InvalidTransitionException(from, action);
+
+    /// <summary>Whether <paramref name="action"/> is legal now (no exception).</summary>
+    public bool Allows(string serviceCode, RequestStatus from, RequestAction action)
+        => ByService.TryGetValue(serviceCode, out var table) && table.ContainsKey((from, action));
 
     public Task<WorkflowStep> AdvanceAsync(ServiceRequest request, RequestAction action, string actorUserId, CancellationToken ct)
-        => Task.FromResult(new WorkflowStep(NextStatus(request.Status, action)));
+        => Task.FromResult(new WorkflowStep(NextStatus(request.ServiceCode, request.Status, action)));
 
     public Task CompensateAsync(WorkflowStep step, CancellationToken ct) => Task.CompletedTask;
 }

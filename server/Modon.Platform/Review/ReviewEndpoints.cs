@@ -37,6 +37,10 @@ public static class ReviewEndpoints
         review.MapGet("/requests/{id:long}/attachments/{slot}", (ReviewService s, long id, string slot, CancellationToken ct)
             => s.DownloadAsync(id, slot, ct));
 
+        // Building licence: an office's quotation attachment or a progress-report attachment.
+        review.MapGet("/requests/{id:long}/building/{kind:regex(^(quotations|progress-reports)$)}/{fileOwnerId:long}/attachment",
+            (ReviewService s, long id, string kind, long fileOwnerId, CancellationToken ct) => s.BuildingFileAsync(id, kind, fileOwnerId, ct));
+
         review.MapPost("/requests/{id:long}/approve", (ReviewService s, HttpContext ctx, long id, CommentBody? body, CancellationToken ct)
             => s.ApproveAsync(Reviewer(ctx), id, body ?? new CommentBody(null), ct));
 

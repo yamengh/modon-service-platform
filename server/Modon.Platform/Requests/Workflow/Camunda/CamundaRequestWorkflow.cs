@@ -1,14 +1,14 @@
 using System.Text.Json;
-using Modon.Platform.Catalog;
 
 namespace Modon.Platform.Requests.Workflow.Camunda;
 
 /// <summary>
-/// Drives the request lifecycle through the excavation BPMN in Camunda 8.
+/// Drives each service's request lifecycle through its own BPMN in Camunda 8 (excavation permit, building licence;
+/// see <see cref="CamundaProcesses"/>).
 /// <list type="bullet">
 /// <item>The rules (who may do what, in which status) are the in-process ones; an illegal action is refused
 /// before Camunda is called.</item>
-/// <item>First submission starts a process instance; the instance key and a per-request correlation key are
+/// <item>First submission starts a process instance of the service's process; the instance key and a per-request correlation key are
 /// stored on the request. Every later action correlates one message to that instance.</item>
 /// <item>Camunda is asked first, the database is written second (by <see cref="RequestTransitions"/>).
 /// The BPMN waits at an event-based gateway, so of two conflicting or repeated actions only one message is
@@ -18,8 +18,11 @@ namespace Modon.Platform.Requests.Workflow.Camunda;
 public sealed class CamundaRequestWorkflow(
     InProcessRequestWorkflow rules,
     ICamundaEngine engine,
+    WorkflowOptions options,
     ILogger<CamundaRequestWorkflow> logger) : IRequestWorkflow
 {
+    private readonly CamundaProcesses _processes = new(options);
+
     /// <summary>
     /// How far a Camunda element's start time may be before the request's last database update and still
     /// count as "a step the database missed" (clock difference between Modon and Camunda).
@@ -37,16 +40,16 @@ public sealed class CamundaRequestWorkflow(
 
     public async Task<WorkflowStep> AdvanceAsync(ServiceRequest request, RequestAction action, string actorUserId, CancellationToken ct)
     {
-        var next = rules.NextStatus(request.Status, action); // illegal actions never reach Camunda
-        if (request.ServiceCode != ServiceCatalogData.ExcavationPermitCode)
-            throw new WorkflowUnavailableException($"No Camunda process is configured for service '{request.ServiceCode}'.");
+        var next = rules.NextStatus(request.ServiceCode, request.Status, action); // illegal actions never reach Camunda
+        var process = _processes.ForService(request.ServiceCode)
+                      ?? throw new WorkflowUnavailableException($"No Camunda process is configured for service '{request.ServiceCode}'.");
 
-        if (action == RequestAction.Submit) return new WorkflowStep(next, await StartAsync(request, actorUserId, ct));
+        if (action == RequestAction.Submit) return new WorkflowStep(next, await StartAsync(process, request, actorUserId, ct));
 
         if (request.WorkflowInstanceKey is not { } instanceKey || request.WorkflowCorrelationKey is not { } correlationKey)
             throw new WorkflowNotStartedException(request.RequestNumber);
 
-        var message = ExcavationProcess.Messages[action];
+        var message = process.Contract.Messages[action];
         var variables = new Dictionary<string, object?>
         {
             ["lastAction"] = JsonNamingPolicy.CamelCase.ConvertName(action.ToString()),
@@ -89,7 +92,7 @@ public sealed class CamundaRequestWorkflow(
         logger.LogWarning("Cancelled process instance {Instance}: its request was not saved", started.ProcessInstanceKey);
     }
 
-    private Task<WorkflowInstanceLink> StartAsync(ServiceRequest request, string actorUserId, CancellationToken ct)
+    private Task<WorkflowInstanceLink> StartAsync(ConfiguredProcess process, ServiceRequest request, string actorUserId, CancellationToken ct)
     {
         // A fresh key per submission: if this attempt fails and leaves an instance behind, that orphan can
         // never receive this request's messages.
@@ -102,6 +105,6 @@ public sealed class CamundaRequestWorkflow(
             [ExcavationProcess.CorrelationKeyVariable] = correlationKey,
             ["submittedByUserId"] = actorUserId,
         };
-        return engine.StartAsync(request.RequestNumber, correlationKey, variables, ct);
+        return engine.StartAsync(process.ProcessId, request.RequestNumber, correlationKey, variables, ct);
     }
 }

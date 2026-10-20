@@ -133,3 +133,49 @@ table.requests th { font-size: 0.85rem; color: var(--muted); background: #fafbfc
 .task-panel h2 { margin-top: 0; font-size: 1.05rem; }
 .task-instructions { white-space: pre-line; margin: 0.4rem 0 0.8rem; }
 .tasks td.instructions { max-width: 28rem; white-space: pre-line; }
+
+/* Building licence (Milestones 6–8) */
+.status-consultantSelection, .status-contractorSelection { background: #fff4e0; color: var(--warn); }
+.status-consultantTender, .status-contractorTender,
+.status-awaitingConsultantDecision, .status-awaitingContractorDecision { background: #f1ecfa; color: #5b3e96; }
+.status-underModonReview { background: #e6f0f6; color: var(--blue); }
+.btn.danger { background: var(--danger); color: #fff; }
+.stepper { list-style: none; display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; padding: 0; margin: 0.75rem 0 1rem; }
+.stepper li { display: flex; align-items: center; gap: 0.4rem; color: var(--muted); font-size: 0.9rem; }
+.stepper .step-no { display: inline-grid; place-items: center; inline-size: 1.6rem; block-size: 1.6rem; border-radius: 50%; border: 2px solid var(--line); font-weight: 700; }
+.stepper li.done .step-no { background: var(--green); border-color: var(--green); color: #fff; }
+.stepper li.current { color: var(--green-dark); font-weight: 700; }
+.stepper li.current .step-no { border-color: var(--green); color: var(--green-dark); }
+.with-unit { display: flex; align-items: stretch; }
+.with-unit input { border-start-end-radius: 0; border-end-end-radius: 0; }
+.with-unit .unit { display: grid; place-items: center; padding-inline: 0.8rem; border: 1px solid var(--line); border-inline-start: none; border-radius: 0 6px 6px 0; background: #f4f6f8; color: var(--muted); font-weight: 400; }
+[dir="rtl"] .with-unit .unit { border-radius: 6px 0 0 6px; }
+.subhead { font-size: 0.95rem; margin: 1rem 0 0.5rem; }
+.contact-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) auto; gap: 0 1rem; align-items: start; border-block-end: 1px solid var(--line); margin-block-end: 0.75rem; }
+.contact-row .link-btn { margin-block-start: 1.8rem; }
+.checkbox { display: flex; gap: 0.6rem; align-items: flex-start; font-weight: 600; }
+.checkbox input { margin-block-start: 0.25rem; }
+.checkbox .hint { display: block; font-weight: 400; }
+.radio-row { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-block: 0.5rem; }
+.radio { display: flex; gap: 0.4rem; align-items: center; font-weight: 600; }
+.stage-panel { margin-block: 1rem; border-inline-start: 4px solid var(--green); }
+.stage-panel h2 { margin-block-start: 0; font-size: 1.05rem; }
+.waiting { margin-block: 1rem; border-inline-start: 4px solid #5b3e96; background: #faf8fe; }
+.read-grid .wide { grid-column: 1 / -1; }
+.pre { white-space: pre-line; }
+table.phases input { inline-size: 7rem; font: inherit; padding: 0.35rem 0.5rem; border: 1px solid var(--line); border-radius: 6px; }
+table.phases [aria-invalid="true"] { border-color: var(--danger); }
+.progress-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.5rem; }
+.progress-list li { display: grid; grid-template-columns: minmax(10rem, 1fr) 2fr auto; gap: 0.75rem; align-items: center; }
+.progress-bar { display: block; block-size: 0.6rem; background: #eef1f4; border-radius: 999px; overflow: hidden; }
+.progress-bar span { display: block; block-size: 100%; background: var(--green); }
+.report-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.report { border-inline-start: 3px solid var(--green); padding-inline-start: 0.75rem; }
+.report p { margin: 0.2rem 0; }
+.report-phases { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; font-size: 0.85rem; }
+.rounds { padding-inline-start: 1.2rem; }
+.quotation + .quotation { border-block-start: 1px solid var(--line); margin-block-start: 1rem; padding-block-start: 1rem; }
+@media (max-width: 760px) {
+  .contact-row, .progress-list li { grid-template-columns: 1fr; }
+  .contact-row .link-btn { margin-block-start: 0; }
+}

@@ -8,6 +8,7 @@ import { useI18n } from "../i18n/I18nContext";
 import { formatDate, formatDateTime, formatPlainDate, formatSize } from "../i18n/format";
 import type { MessageKey } from "../i18n/messages";
 import { actionPath } from "../requests/serviceAvailability";
+import { BuildingRequestView } from "./BuildingRequestView";
 import { FIELD_CATEGORY, useExcavationOptions } from "../requests/useExcavationOptions";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "missing" } | { status: "ready"; request: RequestDetail };
@@ -17,6 +18,7 @@ const ARRIVAL_MESSAGES: [string, MessageKey, "notice" | "alert"][] = [
   ["submitted", "submittedSuccess", "notice"],
   ["resubmitted", "resubmittedSuccess", "notice"],
   ["lettersSubmitted", "lettersSubmittedSuccess", "notice"],
+  ["buildingSubmitted", "buildingSubmitted", "notice"],
   ["changed", "requestChanged", "alert"],
 ];
 
@@ -28,6 +30,8 @@ export function RequestDetailPage() {
   const arrival = ARRIVAL_MESSAGES.find(([key]) => arrivedFrom[key] === true);
   const options = useExcavationOptions();
   const [load, setLoad] = useState<Load>({ status: "loading" });
+  const [reloads, setReloads] = useState(0);
+  const [changed, setChanged] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -38,7 +42,7 @@ export function RequestDetailPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, reloads]);
 
   const back = (
     <Link to="/requests" className="breadcrumb">
@@ -57,6 +61,33 @@ export function RequestDetailPage() {
     );
 
   const r = load.request;
+  const arrivalNotice = arrival && (
+    <p className={arrival[2]} role={arrival[2] === "notice" ? "status" : "alert"}>
+      {t(arrival[1])}
+    </p>
+  );
+  if (r.building)
+    return (
+      <BuildingRequestView
+        key={`${r.id}-${r.updatedAt}`}
+        request={r}
+        establishments={typeof options === "object" ? options.establishments : null}
+        arrival={
+          changed ? (
+            <p className="alert" role="alert">
+              {t("stageChanged")}
+            </p>
+          ) : (
+            arrivalNotice
+          )
+        }
+        back={back}
+        reload={() => {
+          setChanged(true);
+          setReloads((n) => n + 1);
+        }}
+      />
+    );
   const x = r.excavation;
   const lookupsReady = typeof options === "object";
 

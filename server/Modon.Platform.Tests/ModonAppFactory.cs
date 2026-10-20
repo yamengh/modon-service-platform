@@ -53,8 +53,12 @@ public class ModonAppFactory : WebApplicationFactory<ModonPlatformEntryPoint>
         return client;
     }
 
-    /// <summary>Creates a user with the given roles and links them to a new establishment of their own.</summary>
-    public async Task<(string Email, long EstablishmentId)> CreateUserAsync(string[] roles)
+    /// <summary>
+    /// Creates a user with the given roles and links them to a new establishment of their own (optionally registered
+    /// as a consulting office or contractor, which only seeding can do).
+    /// </summary>
+    public async Task<(string Email, long EstablishmentId)> CreateUserAsync(string[] roles,
+        DevUserSeeder.OfficeKind office = DevUserSeeder.OfficeKind.None)
     {
         var email = $"user-{Guid.NewGuid():N}@test.local";
         using var scope = Services.CreateScope();
@@ -64,7 +68,7 @@ public class ModonAppFactory : WebApplicationFactory<ModonPlatformEntryPoint>
             .FindByEmailAsync(email))!.Id;
         var cr = Random.Shared.NextInt64(7_000_000_000, 7_999_999_999).ToString();
         var establishment = await DevUserSeeder.EnsureEstablishmentMemberAsync(
-            scope.ServiceProvider.GetRequiredService<ModonDbContext>(), cr, "منشأة اختبار", "Test establishment", userId);
+            scope.ServiceProvider.GetRequiredService<ModonDbContext>(), cr, "منشأة اختبار", "Test establishment", userId, office);
         return (email, establishment.Id);
     }
 

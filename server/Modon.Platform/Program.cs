@@ -12,6 +12,7 @@ using Modon.Platform.Http;
 using Modon.Platform.Identity;
 using Modon.Platform.Lookups;
 using Modon.Platform.Requests;
+using Modon.Platform.Requests.Building;
 using Modon.Platform.Requests.Workflow;
 using Modon.Platform.Requests.Workflow.Camunda;
 using Modon.Platform.Review;
@@ -63,6 +64,13 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestStatus>(JsonNamingPolicy.CamelCase));
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<RequestAction>(JsonNamingPolicy.CamelCase));
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ApplicantTaskKind>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<BuildingStage>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<SelectionMode>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<TenderState>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<QuotationState>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ConstructionPhase>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<OfficeDecision>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<PartnerRelation>(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddSingleton(TimeProvider.System);
 
@@ -88,6 +96,8 @@ builder.Services.AddScoped<ExcavationValidator>();
 builder.Services.AddSingleton<UploadValidator>();
 builder.Services.AddScoped<RequestTransitions>();
 builder.Services.AddScoped<ServiceCatalogNames>();
+builder.Services.AddScoped<BuildingValidator>();
+builder.Services.AddScoped<BuildingService>();
 builder.Services.AddScoped<RequestService>();
 builder.Services.AddScoped<ReviewService>();
 

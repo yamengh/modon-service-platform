@@ -34,9 +34,10 @@ public sealed record RequestDetail(
     HistoryItem[] History,
     AttachmentSlot[] CoordinationLetterSlots,
     bool CanUploadCoordinationLetters,
-    ApplicantTask? CurrentTask);
+    ApplicantTask? CurrentTask,
+    Building.BuildingView? Building = null);
 
-/// <summary>What Modon is waiting for the applicant to do.</summary>
+/// <summary>What Modon (or the workflow) is waiting for the user to do.</summary>
 public enum ApplicantTaskKind
 {
     /// <summary>Edit the returned application and resubmit it.</summary>
@@ -44,6 +45,16 @@ public enum ApplicantTaskKind
 
     /// <summary>Upload the coordination letters and send them.</summary>
     UploadCoordinationLetters,
+
+    // Building licence: the investor's stage decisions
+    ChooseConsultant,
+    ReviewConsultantQuotations,
+    ChooseContractor,
+    ReviewContractorQuotations,
+
+    // Building licence: an office chosen directly by the investor must accept or reject
+    RespondAsConsultant,
+    RespondAsContractor,
 }
 
 /// <summary>The open task on a request: the reviewer's instructions and when they were given.</summary>
@@ -102,4 +113,11 @@ public static class ProblemCodes
     public const string NotYourEstablishment = "notYourEstablishment";
     public const string WorkflowUnavailable = "workflowUnavailable";
     public const string WorkflowNotStarted = "workflowNotStarted";
+
+    // Building licence
+    public const string WrongService = "wrongService";
+    public const string QuotationNotFound = "quotationNotFound";
+    public const string QuotationAlreadySubmitted = "quotationAlreadySubmitted";
+    public const string ReportPeriodTaken = "reportPeriodTaken";
+    public const string OwnProject = "ownProject";
 }

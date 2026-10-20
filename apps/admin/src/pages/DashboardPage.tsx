@@ -8,7 +8,13 @@ import { useI18n } from "../i18n/I18nContext";
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; summary: ReviewSummary };
 
 /** Shown in this order; statuses with no transitions yet (cancelled) still appear for completeness. */
-const STATUSES: ReviewStatus[] = ["inProgress", "returnedForCompletion", "awaitingCoordinationLetters", "approved", "rejected", "cancelled"];
+const STATUSES: ReviewStatus[] = [
+  "inProgress", "returnedForCompletion", "awaitingCoordinationLetters",
+  // building licence
+  "consultantSelection", "consultantTender", "awaitingConsultantDecision",
+  "contractorSelection", "contractorTender", "awaitingContractorDecision", "underModonReview",
+  "approved", "rejected", "cancelled",
+];
 
 export function DashboardPage() {
   const { t } = useI18n();

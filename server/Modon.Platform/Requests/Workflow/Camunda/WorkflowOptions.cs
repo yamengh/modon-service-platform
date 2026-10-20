@@ -5,7 +5,7 @@ public enum WorkflowEngineKind
     /// <summary>Rules evaluated in the backend only (automated tests, local fallback).</summary>
     InProcess,
 
-    /// <summary>The excavation BPMN running in a Camunda 8 orchestration cluster.</summary>
+    /// <summary>The services' BPMN processes (excavation permit, building licence) running in a Camunda 8 orchestration cluster.</summary>
     Camunda,
 }
 
@@ -33,6 +33,11 @@ public sealed class WorkflowOptions
             throw new InvalidOperationException($"{Section}:Camunda:BasicUsername and BasicPassword are required for BASIC authentication.");
         if (string.IsNullOrWhiteSpace(c.ProcessId))
             throw new InvalidOperationException($"{Section}:Camunda:ProcessId is required.");
+        if (string.IsNullOrWhiteSpace(c.BuildingLicenceProcessId))
+            throw new InvalidOperationException($"{Section}:Camunda:BuildingLicenceProcessId is required.");
+        if (c.BuildingLicenceProcessId == c.ProcessId)
+            throw new InvalidOperationException(
+                $"{Section}:Camunda:BuildingLicenceProcessId must differ from ProcessId (each service has its own process).");
         if (c.RequestTimeoutSeconds is < 1 or > 120)
             throw new InvalidOperationException($"{Section}:Camunda:RequestTimeoutSeconds must be between 1 and 120.");
     }
@@ -55,6 +60,9 @@ public sealed class CamundaWorkflowOptions
 
     /// <summary>BPMN process id of the deployed excavation process.</summary>
     public string ProcessId { get; set; } = ExcavationProcess.DefaultProcessId;
+
+    /// <summary>BPMN process id of the deployed building-licence process (a separate process).</summary>
+    public string BuildingLicenceProcessId { get; set; } = BuildingLicenceProcess.DefaultProcessId;
 
     /// <summary>Tenant id; leave empty when multi-tenancy is off.</summary>
     public string? TenantId { get; set; }

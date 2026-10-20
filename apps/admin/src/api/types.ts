@@ -16,7 +16,15 @@ export type RequestStatus =
   | "awaitingCoordinationLetters"
   | "approved"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  // building licence
+  | "consultantSelection"
+  | "consultantTender"
+  | "awaitingConsultantDecision"
+  | "contractorSelection"
+  | "contractorTender"
+  | "awaitingContractorDecision"
+  | "underModonReview";
 export type ReviewStatus = Exclude<RequestStatus, "draft">;
 export type RequestAction =
   | "create"
@@ -26,7 +34,21 @@ export type RequestAction =
   | "returnForCompletion"
   | "resubmit"
   | "requestCoordinationLetters"
-  | "submitCoordinationLetters";
+  | "submitCoordinationLetters"
+  // building licence
+  | "openConsultantTender"
+  | "selectConsultant"
+  | "acceptConsultantQuotation"
+  | "rejectConsultantQuotations"
+  | "consultantAccepted"
+  | "consultantDeclined"
+  | "openContractorTender"
+  | "selectContractor"
+  | "acceptContractorQuotation"
+  | "rejectContractorQuotations"
+  | "contractorAccepted"
+  | "contractorDeclined"
+  | "submitProgressReport";
 export type Decision = "approve" | "requestCoordinationLetters" | "returnForCompletion" | "reject";
 
 export interface ApplicantInfo {
@@ -138,6 +160,8 @@ export interface ReviewRequestDetail {
   /** Coordination letters the applicant uploads when asked (shown once uploaded). */
   coordinationLetterSlots: AttachmentSlot[];
   workflow: ReviewWorkflowInfo;
+  /** Building licence only: form, contacts, rounds and quotations, selected offices, progress reports. */
+  building: BuildingView | null;
 }
 
 export type WorkflowEngine = "inProcess" | "camunda";
@@ -168,7 +192,20 @@ export interface WorkflowStatusReport {
     checkedInVersionTag: string | null;
     processDefinitionKey: string | null;
     error: string | null;
+    /** Every process Modon drives (excavation permit, building licence), each with its deployment. */
+    processes: CamundaProcessReport[];
   } | null;
+}
+
+export interface CamundaProcessReport {
+  serviceCode: string;
+  processId: string;
+  bpmnFile: string;
+  deployed: boolean;
+  deployedVersion: number | null;
+  deployedVersionTag: string | null;
+  checkedInVersionTag: string | null;
+  processDefinitionKey: string | null;
 }
 
 /** GET /api/modon/review/requests/{id}/workflow — the database status next to Camunda's. */
@@ -214,3 +251,94 @@ export type LookupCategory =
 
 /** Field → error codes, as returned in a 400 ValidationProblem. */
 export type FieldErrors = Record<string, string[]>;
+
+// --- Building licence (Milestones 6–8) --------------------------------------------------------------
+
+export type BuildingStage = "consultant" | "contractor";
+export type ConstructionPhase =
+  | "sitePreparation"
+  | "foundations"
+  | "structuralWorks"
+  | "wallsInsulationFloors"
+  | "electricalMechanicalArchitectural"
+  | "siteFinishingAndFence";
+
+export interface BuildingLicenceData {
+  establishmentId: number | null;
+  contractNumber: string | null;
+  licenceTypeCode: string | null;
+  constructionBudgetSar: number | null;
+  floorCount: number | null;
+  scopeOfWork: string | null;
+  notes: string | null;
+  contacts: { name: string | null; email: string | null; mobile: string | null }[];
+  termsAccepted: boolean;
+}
+
+export interface OfficeInfo {
+  id: number;
+  crNumber: string;
+  nameAr: string;
+  nameEn: string;
+}
+
+export interface StoredFile {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+export interface QuotationView {
+  id: number;
+  tenderId: number;
+  stage: BuildingStage;
+  office: OfficeInfo;
+  state: "submitted" | "selected" | "notSelected" | "declined";
+  amountSar: number | null;
+  comment: string | null;
+  commitmentsAccepted: boolean;
+  submittedAt: string;
+  attachment: StoredFile | null;
+  phases: { phase: ConstructionPhase; sharePercent: number | null; durationDays: number | null }[];
+}
+
+export interface TenderView {
+  id: number;
+  stage: BuildingStage;
+  mode: "openTender" | "direct";
+  number: string | null;
+  invitedOffice: OfficeInfo | null;
+  state: "open" | "awarded" | "closed";
+  openedAt: string;
+  closedAt: string | null;
+  quotations: QuotationView[];
+}
+
+export interface PhaseProgress {
+  phase: ConstructionPhase;
+  completionPercent: number | null;
+}
+
+export interface ProgressReportView {
+  id: number;
+  period: string;
+  office: OfficeInfo;
+  submittedByUserId: string;
+  submittedByEmail: string | null;
+  submittedAt: string;
+  comment: string | null;
+  attachment: StoredFile | null;
+  phases: PhaseProgress[];
+}
+
+export interface BuildingView {
+  form: BuildingLicenceData;
+  tenders: TenderView[];
+  selectedConsultant: OfficeInfo | null;
+  consultantQuotation: QuotationView | null;
+  selectedContractor: OfficeInfo | null;
+  contractorQuotation: QuotationView | null;
+  progressReports: ProgressReportView[];
+  currentProgress: PhaseProgress[];
+  investorActions: RequestAction[];
+}

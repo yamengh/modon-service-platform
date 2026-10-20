@@ -1,0 +1,570 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Modon - Building Licence & Construction Reports, Camunda 8.9. A separate process from the excavation permit.
+  Started by Modon.Platform when the investor submits the basic information. Every later step - the investor's
+  consultant and contractor choices, the offices' answers, Modon's decision and each monthly progress report -
+  is a message that Modon.Platform correlates by the instance's own "correlationKey" variable (unique per request).
+  Human work happens in the Modon portals; there are no user tasks or job workers.
+  Element ids and message names are referenced from BuildingLicenceProcess.cs; keep them in sync.
+  Names are English only: the local Camunda 8.9 bundle garbles non-ASCII element names.
+  Generated layout; edit freely in Camunda Modeler (keep the ids).
+-->
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL"
+                  xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI"
+                  xmlns:dc="http://www.omg.org/spec/DD/20100524/DC"
+                  xmlns:di="http://www.omg.org/spec/DD/20100524/DI"
+                  xmlns:zeebe="http://camunda.org/schema/zeebe/1.0"
+                  xmlns:modeler="http://camunda.org/schema/modeler/1.0"
+                  id="Definitions_ModonBuildingLicence"
+                  targetNamespace="http://modon.gov.sa/bpmn/building-licence"
+                  exporter="Camunda Modeler"
+                  exporterVersion="5.40.0"
+                  modeler:executionPlatform="Camunda Cloud"
+                  modeler:executionPlatformVersion="8.9.0">
+
+  <bpmn:message id="Message_BuildingConsultantTenderOpened" name="BuildingConsultantTenderOpened">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingConsultantSelected" name="BuildingConsultantSelected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingConsultantQuotationAccepted" name="BuildingConsultantQuotationAccepted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingConsultantQuotationsRejected" name="BuildingConsultantQuotationsRejected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingConsultantAccepted" name="BuildingConsultantAccepted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingConsultantDeclined" name="BuildingConsultantDeclined">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorTenderOpened" name="BuildingContractorTenderOpened">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorSelected" name="BuildingContractorSelected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorQuotationAccepted" name="BuildingContractorQuotationAccepted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorQuotationsRejected" name="BuildingContractorQuotationsRejected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorAccepted" name="BuildingContractorAccepted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingContractorDeclined" name="BuildingContractorDeclined">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingLicenceApproved" name="BuildingLicenceApproved">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingLicenceRejected" name="BuildingLicenceRejected">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+  <bpmn:message id="Message_BuildingProgressReportSubmitted" name="BuildingProgressReportSubmitted">
+    <bpmn:extensionElements>
+      <zeebe:subscription correlationKey="=correlationKey" />
+    </bpmn:extensionElements>
+  </bpmn:message>
+
+  <bpmn:process id="modon-building-licence" name="Modon Building Licence" isExecutable="true">
+    <bpmn:extensionElements>
+      <zeebe:versionTag value="1.0.0" />
+    </bpmn:extensionElements>
+
+    <bpmn:startEvent id="StartEvent_ApplicationSubmitted" name="Basic information submitted">
+      <bpmn:outgoing>Flow_ToConsultantMerge</bpmn:outgoing>
+    </bpmn:startEvent>
+    <bpmn:exclusiveGateway id="Gateway_ConsultantSelectionMerge" name="Choose consulting office">
+      <bpmn:incoming>Flow_ToConsultantMerge</bpmn:incoming>
+      <bpmn:incoming>Flow_ConsultantQuotationsRejectedBack</bpmn:incoming>
+      <bpmn:incoming>Flow_ConsultantDeclinedBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantSelection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <!-- Waiting for the investor (status ConsultantSelection): open project or a specific office. -->
+    <bpmn:eventBasedGateway id="Gateway_ConsultantSelection" name="Investor chooses">
+      <bpmn:incoming>Flow_ToConsultantSelection</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantTenderOpened</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToConsultantSelected</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantTenderOpened" name="Open project">
+      <bpmn:incoming>Flow_ToConsultantTenderOpened</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantTender</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantTenderOpened" messageRef="Message_BuildingConsultantTenderOpened" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantSelected" name="Specific office chosen">
+      <bpmn:incoming>Flow_ToConsultantSelected</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantDecision</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantSelected" messageRef="Message_BuildingConsultantSelected" />
+    </bpmn:intermediateCatchEvent>
+    <!-- Open project (status ConsultantTender). Quotations are stored in Modon; only the investor's choice is a message. -->
+    <bpmn:eventBasedGateway id="Gateway_ConsultantTender" name="Offices quote">
+      <bpmn:incoming>Flow_ToConsultantTender</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantQuotationAccepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToConsultantQuotationsRejected</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <!-- The office chosen directly decides (status AwaitingConsultantDecision). -->
+    <bpmn:eventBasedGateway id="Gateway_ConsultantDecision" name="Office decides">
+      <bpmn:incoming>Flow_ToConsultantDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToConsultantAccepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToConsultantDeclined</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantQuotationAccepted" name="Quotation chosen">
+      <bpmn:incoming>Flow_ToConsultantQuotationAccepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConsultantQuotationToContractor</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantQuotationAccepted" messageRef="Message_BuildingConsultantQuotationAccepted" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantQuotationsRejected" name="All quotations rejected">
+      <bpmn:incoming>Flow_ToConsultantQuotationsRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConsultantQuotationsRejectedBack</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantQuotationsRejected" messageRef="Message_BuildingConsultantQuotationsRejected" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantAccepted" name="Office accepted">
+      <bpmn:incoming>Flow_ToConsultantAccepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConsultantAcceptedToContractor</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantAccepted" messageRef="Message_BuildingConsultantAccepted" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ConsultantDeclined" name="Office rejected">
+      <bpmn:incoming>Flow_ToConsultantDeclined</bpmn:incoming>
+      <bpmn:outgoing>Flow_ConsultantDeclinedBack</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingConsultantDeclined" messageRef="Message_BuildingConsultantDeclined" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Gateway_ContractorSelectionMerge" name="Choose contractor">
+      <bpmn:incoming>Flow_ConsultantQuotationToContractor</bpmn:incoming>
+      <bpmn:incoming>Flow_ConsultantAcceptedToContractor</bpmn:incoming>
+      <bpmn:incoming>Flow_ContractorQuotationsRejectedBack</bpmn:incoming>
+      <bpmn:incoming>Flow_ContractorDeclinedBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorSelection</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <!-- Waiting for the investor (status ContractorSelection). -->
+    <bpmn:eventBasedGateway id="Gateway_ContractorSelection" name="Investor chooses">
+      <bpmn:incoming>Flow_ToContractorSelection</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorTenderOpened</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToContractorSelected</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_ContractorTenderOpened" name="Open project">
+      <bpmn:incoming>Flow_ToContractorTenderOpened</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorTender</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorTenderOpened" messageRef="Message_BuildingContractorTenderOpened" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ContractorSelected" name="Specific contractor chosen">
+      <bpmn:incoming>Flow_ToContractorSelected</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorDecision</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorSelected" messageRef="Message_BuildingContractorSelected" />
+    </bpmn:intermediateCatchEvent>
+    <!-- Open project for contractors (status ContractorTender). -->
+    <bpmn:eventBasedGateway id="Gateway_ContractorTender" name="Contractors quote">
+      <bpmn:incoming>Flow_ToContractorTender</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorQuotationAccepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToContractorQuotationsRejected</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <!-- The contractor chosen directly decides (status AwaitingContractorDecision). -->
+    <bpmn:eventBasedGateway id="Gateway_ContractorDecision" name="Contractor decides">
+      <bpmn:incoming>Flow_ToContractorDecision</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToContractorAccepted</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToContractorDeclined</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_ContractorQuotationAccepted" name="Quotation chosen">
+      <bpmn:incoming>Flow_ToContractorQuotationAccepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContractorQuotationToReview</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorQuotationAccepted" messageRef="Message_BuildingContractorQuotationAccepted" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ContractorQuotationsRejected" name="All quotations rejected">
+      <bpmn:incoming>Flow_ToContractorQuotationsRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContractorQuotationsRejectedBack</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorQuotationsRejected" messageRef="Message_BuildingContractorQuotationsRejected" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ContractorAccepted" name="Contractor accepted">
+      <bpmn:incoming>Flow_ToContractorAccepted</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContractorAcceptedToReview</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorAccepted" messageRef="Message_BuildingContractorAccepted" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_ContractorDeclined" name="Contractor rejected">
+      <bpmn:incoming>Flow_ToContractorDeclined</bpmn:incoming>
+      <bpmn:outgoing>Flow_ContractorDeclinedBack</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingContractorDeclined" messageRef="Message_BuildingContractorDeclined" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Gateway_LicenceReviewMerge" name="To Modon">
+      <bpmn:incoming>Flow_ContractorQuotationToReview</bpmn:incoming>
+      <bpmn:incoming>Flow_ContractorAcceptedToReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToLicenceReview</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <!-- With the industrial-city officer in the Modon admin portal (status UnderModonReview). Only the first decision is consumed. -->
+    <bpmn:eventBasedGateway id="Gateway_LicenceReview" name="Modon review">
+      <bpmn:incoming>Flow_ToLicenceReview</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToLicenceApproved</bpmn:outgoing>
+      <bpmn:outgoing>Flow_ToLicenceRejected</bpmn:outgoing>
+    </bpmn:eventBasedGateway>
+    <bpmn:intermediateCatchEvent id="Event_LicenceApproved" name="Licence approved">
+      <bpmn:incoming>Flow_ToLicenceApproved</bpmn:incoming>
+      <bpmn:outgoing>Flow_ApprovedToConstruction</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingLicenceApproved" messageRef="Message_BuildingLicenceApproved" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:intermediateCatchEvent id="Event_LicenceRejected" name="Licence rejected">
+      <bpmn:incoming>Flow_ToLicenceRejected</bpmn:incoming>
+      <bpmn:outgoing>Flow_RejectedToEnd</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingLicenceRejected" messageRef="Message_BuildingLicenceRejected" />
+    </bpmn:intermediateCatchEvent>
+    <bpmn:exclusiveGateway id="Gateway_ConstructionMerge" name="Construction follow-up">
+      <bpmn:incoming>Flow_ApprovedToConstruction</bpmn:incoming>
+      <bpmn:incoming>Flow_ProgressReportBack</bpmn:incoming>
+      <bpmn:outgoing>Flow_ToAwaitProgressReport</bpmn:outgoing>
+    </bpmn:exclusiveGateway>
+    <bpmn:endEvent id="End_LicenceRejected" name="Request rejected">
+      <bpmn:incoming>Flow_RejectedToEnd</bpmn:incoming>
+    </bpmn:endEvent>
+    <!-- Licence approved (status Approved): one message per monthly progress report, then back here. -->
+    <bpmn:intermediateCatchEvent id="Event_AwaitProgressReport" name="Monthly progress report">
+      <bpmn:incoming>Flow_ToAwaitProgressReport</bpmn:incoming>
+      <bpmn:outgoing>Flow_ProgressReportBack</bpmn:outgoing>
+      <bpmn:messageEventDefinition id="MessageDef_BuildingProgressReportSubmitted" messageRef="Message_BuildingProgressReportSubmitted" />
+    </bpmn:intermediateCatchEvent>
+
+    <bpmn:sequenceFlow id="Flow_ToConsultantMerge" sourceRef="StartEvent_ApplicationSubmitted" targetRef="Gateway_ConsultantSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantSelection" sourceRef="Gateway_ConsultantSelectionMerge" targetRef="Gateway_ConsultantSelection" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantTenderOpened" sourceRef="Gateway_ConsultantSelection" targetRef="Event_ConsultantTenderOpened" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantSelected" sourceRef="Gateway_ConsultantSelection" targetRef="Event_ConsultantSelected" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantTender" sourceRef="Event_ConsultantTenderOpened" targetRef="Gateway_ConsultantTender" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantDecision" sourceRef="Event_ConsultantSelected" targetRef="Gateway_ConsultantDecision" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantQuotationAccepted" sourceRef="Gateway_ConsultantTender" targetRef="Event_ConsultantQuotationAccepted" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantQuotationsRejected" sourceRef="Gateway_ConsultantTender" targetRef="Event_ConsultantQuotationsRejected" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantAccepted" sourceRef="Gateway_ConsultantDecision" targetRef="Event_ConsultantAccepted" />
+    <bpmn:sequenceFlow id="Flow_ToConsultantDeclined" sourceRef="Gateway_ConsultantDecision" targetRef="Event_ConsultantDeclined" />
+    <bpmn:sequenceFlow id="Flow_ConsultantQuotationToContractor" sourceRef="Event_ConsultantQuotationAccepted" targetRef="Gateway_ContractorSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ConsultantAcceptedToContractor" sourceRef="Event_ConsultantAccepted" targetRef="Gateway_ContractorSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ConsultantQuotationsRejectedBack" sourceRef="Event_ConsultantQuotationsRejected" targetRef="Gateway_ConsultantSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ConsultantDeclinedBack" sourceRef="Event_ConsultantDeclined" targetRef="Gateway_ConsultantSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ToContractorSelection" sourceRef="Gateway_ContractorSelectionMerge" targetRef="Gateway_ContractorSelection" />
+    <bpmn:sequenceFlow id="Flow_ToContractorTenderOpened" sourceRef="Gateway_ContractorSelection" targetRef="Event_ContractorTenderOpened" />
+    <bpmn:sequenceFlow id="Flow_ToContractorSelected" sourceRef="Gateway_ContractorSelection" targetRef="Event_ContractorSelected" />
+    <bpmn:sequenceFlow id="Flow_ToContractorTender" sourceRef="Event_ContractorTenderOpened" targetRef="Gateway_ContractorTender" />
+    <bpmn:sequenceFlow id="Flow_ToContractorDecision" sourceRef="Event_ContractorSelected" targetRef="Gateway_ContractorDecision" />
+    <bpmn:sequenceFlow id="Flow_ToContractorQuotationAccepted" sourceRef="Gateway_ContractorTender" targetRef="Event_ContractorQuotationAccepted" />
+    <bpmn:sequenceFlow id="Flow_ToContractorQuotationsRejected" sourceRef="Gateway_ContractorTender" targetRef="Event_ContractorQuotationsRejected" />
+    <bpmn:sequenceFlow id="Flow_ToContractorAccepted" sourceRef="Gateway_ContractorDecision" targetRef="Event_ContractorAccepted" />
+    <bpmn:sequenceFlow id="Flow_ToContractorDeclined" sourceRef="Gateway_ContractorDecision" targetRef="Event_ContractorDeclined" />
+    <bpmn:sequenceFlow id="Flow_ContractorQuotationToReview" sourceRef="Event_ContractorQuotationAccepted" targetRef="Gateway_LicenceReviewMerge" />
+    <bpmn:sequenceFlow id="Flow_ContractorAcceptedToReview" sourceRef="Event_ContractorAccepted" targetRef="Gateway_LicenceReviewMerge" />
+    <bpmn:sequenceFlow id="Flow_ContractorQuotationsRejectedBack" sourceRef="Event_ContractorQuotationsRejected" targetRef="Gateway_ContractorSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ContractorDeclinedBack" sourceRef="Event_ContractorDeclined" targetRef="Gateway_ContractorSelectionMerge" />
+    <bpmn:sequenceFlow id="Flow_ToLicenceReview" sourceRef="Gateway_LicenceReviewMerge" targetRef="Gateway_LicenceReview" />
+    <bpmn:sequenceFlow id="Flow_ToLicenceApproved" sourceRef="Gateway_LicenceReview" targetRef="Event_LicenceApproved" />
+    <bpmn:sequenceFlow id="Flow_ToLicenceRejected" sourceRef="Gateway_LicenceReview" targetRef="Event_LicenceRejected" />
+    <bpmn:sequenceFlow id="Flow_ApprovedToConstruction" sourceRef="Event_LicenceApproved" targetRef="Gateway_ConstructionMerge" />
+    <bpmn:sequenceFlow id="Flow_RejectedToEnd" sourceRef="Event_LicenceRejected" targetRef="End_LicenceRejected" />
+    <bpmn:sequenceFlow id="Flow_ToAwaitProgressReport" sourceRef="Gateway_ConstructionMerge" targetRef="Event_AwaitProgressReport" />
+    <bpmn:sequenceFlow id="Flow_ProgressReportBack" sourceRef="Event_AwaitProgressReport" targetRef="Gateway_ConstructionMerge" />
+  </bpmn:process>
+
+  <bpmndi:BPMNDiagram id="BPMNDiagram_ModonBuildingLicence">
+    <bpmndi:BPMNPlane id="BPMNPlane_ModonBuildingLicence" bpmnElement="modon-building-licence">
+      <bpmndi:BPMNShape id="Shape_StartEvent_ApplicationSubmitted" bpmnElement="StartEvent_ApplicationSubmitted">
+        <dc:Bounds x="142" y="282" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="110" y="323" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ConsultantSelectionMerge" bpmnElement="Gateway_ConsultantSelectionMerge" isMarkerVisible="true">
+        <dc:Bounds x="225" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="200" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ConsultantSelection" bpmnElement="Gateway_ConsultantSelection">
+        <dc:Bounds x="325" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="300" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantTenderOpened" bpmnElement="Event_ConsultantTenderOpened">
+        <dc:Bounds x="442" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="410" y="223" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantSelected" bpmnElement="Event_ConsultantSelected">
+        <dc:Bounds x="442" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="410" y="423" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ConsultantTender" bpmnElement="Gateway_ConsultantTender">
+        <dc:Bounds x="545" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="520" y="230" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ConsultantDecision" bpmnElement="Gateway_ConsultantDecision">
+        <dc:Bounds x="545" y="375" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="520" y="430" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantQuotationAccepted" bpmnElement="Event_ConsultantQuotationAccepted">
+        <dc:Bounds x="672" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="640" y="143" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantQuotationsRejected" bpmnElement="Event_ConsultantQuotationsRejected">
+        <dc:Bounds x="672" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="640" y="273" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantAccepted" bpmnElement="Event_ConsultantAccepted">
+        <dc:Bounds x="672" y="332" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="640" y="373" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ConsultantDeclined" bpmnElement="Event_ConsultantDeclined">
+        <dc:Bounds x="672" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="640" y="503" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ContractorSelectionMerge" bpmnElement="Gateway_ContractorSelectionMerge" isMarkerVisible="true">
+        <dc:Bounds x="795" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="770" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ContractorSelection" bpmnElement="Gateway_ContractorSelection">
+        <dc:Bounds x="895" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="870" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorTenderOpened" bpmnElement="Event_ContractorTenderOpened">
+        <dc:Bounds x="1012" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="980" y="223" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorSelected" bpmnElement="Event_ContractorSelected">
+        <dc:Bounds x="1012" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="980" y="423" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ContractorTender" bpmnElement="Gateway_ContractorTender">
+        <dc:Bounds x="1115" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1090" y="230" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ContractorDecision" bpmnElement="Gateway_ContractorDecision">
+        <dc:Bounds x="1115" y="375" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1090" y="430" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorQuotationAccepted" bpmnElement="Event_ContractorQuotationAccepted">
+        <dc:Bounds x="1242" y="102" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1210" y="143" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorQuotationsRejected" bpmnElement="Event_ContractorQuotationsRejected">
+        <dc:Bounds x="1242" y="232" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1210" y="273" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorAccepted" bpmnElement="Event_ContractorAccepted">
+        <dc:Bounds x="1242" y="332" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1210" y="373" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_ContractorDeclined" bpmnElement="Event_ContractorDeclined">
+        <dc:Bounds x="1242" y="462" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1210" y="503" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_LicenceReviewMerge" bpmnElement="Gateway_LicenceReviewMerge" isMarkerVisible="true">
+        <dc:Bounds x="1365" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1340" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_LicenceReview" bpmnElement="Gateway_LicenceReview">
+        <dc:Bounds x="1465" y="275" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1440" y="330" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_LicenceApproved" bpmnElement="Event_LicenceApproved">
+        <dc:Bounds x="1582" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1550" y="223" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_LicenceRejected" bpmnElement="Event_LicenceRejected">
+        <dc:Bounds x="1582" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1550" y="423" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Gateway_ConstructionMerge" bpmnElement="Gateway_ConstructionMerge" isMarkerVisible="true">
+        <dc:Bounds x="1685" y="175" width="50" height="50" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1660" y="230" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_End_LicenceRejected" bpmnElement="End_LicenceRejected">
+        <dc:Bounds x="1692" y="382" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1660" y="423" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNShape id="Shape_Event_AwaitProgressReport" bpmnElement="Event_AwaitProgressReport">
+        <dc:Bounds x="1812" y="182" width="36" height="36" />
+        <bpmndi:BPMNLabel><dc:Bounds x="1780" y="223" width="100" height="27" /></bpmndi:BPMNLabel>
+      </bpmndi:BPMNShape>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantMerge" bpmnElement="Flow_ToConsultantMerge">
+        <di:waypoint x="178" y="300" />
+        <di:waypoint x="225" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantSelection" bpmnElement="Flow_ToConsultantSelection">
+        <di:waypoint x="275" y="300" />
+        <di:waypoint x="325" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantTenderOpened" bpmnElement="Flow_ToConsultantTenderOpened">
+        <di:waypoint x="350" y="275" />
+        <di:waypoint x="350" y="200" />
+        <di:waypoint x="442" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantSelected" bpmnElement="Flow_ToConsultantSelected">
+        <di:waypoint x="350" y="325" />
+        <di:waypoint x="350" y="400" />
+        <di:waypoint x="442" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantTender" bpmnElement="Flow_ToConsultantTender">
+        <di:waypoint x="478" y="200" />
+        <di:waypoint x="545" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantDecision" bpmnElement="Flow_ToConsultantDecision">
+        <di:waypoint x="478" y="400" />
+        <di:waypoint x="545" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantQuotationAccepted" bpmnElement="Flow_ToConsultantQuotationAccepted">
+        <di:waypoint x="570" y="175" />
+        <di:waypoint x="570" y="120" />
+        <di:waypoint x="672" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantQuotationsRejected" bpmnElement="Flow_ToConsultantQuotationsRejected">
+        <di:waypoint x="570" y="225" />
+        <di:waypoint x="570" y="250" />
+        <di:waypoint x="672" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantAccepted" bpmnElement="Flow_ToConsultantAccepted">
+        <di:waypoint x="570" y="375" />
+        <di:waypoint x="570" y="350" />
+        <di:waypoint x="672" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToConsultantDeclined" bpmnElement="Flow_ToConsultantDeclined">
+        <di:waypoint x="570" y="425" />
+        <di:waypoint x="570" y="480" />
+        <di:waypoint x="672" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ConsultantQuotationToContractor" bpmnElement="Flow_ConsultantQuotationToContractor">
+        <di:waypoint x="708" y="120" />
+        <di:waypoint x="820" y="120" />
+        <di:waypoint x="820" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ConsultantAcceptedToContractor" bpmnElement="Flow_ConsultantAcceptedToContractor">
+        <di:waypoint x="708" y="350" />
+        <di:waypoint x="820" y="350" />
+        <di:waypoint x="820" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ConsultantQuotationsRejectedBack" bpmnElement="Flow_ConsultantQuotationsRejectedBack">
+        <di:waypoint x="690" y="268" />
+        <di:waypoint x="690" y="560" />
+        <di:waypoint x="250" y="560" />
+        <di:waypoint x="250" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ConsultantDeclinedBack" bpmnElement="Flow_ConsultantDeclinedBack">
+        <di:waypoint x="690" y="498" />
+        <di:waypoint x="690" y="580" />
+        <di:waypoint x="250" y="580" />
+        <di:waypoint x="250" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorSelection" bpmnElement="Flow_ToContractorSelection">
+        <di:waypoint x="845" y="300" />
+        <di:waypoint x="895" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorTenderOpened" bpmnElement="Flow_ToContractorTenderOpened">
+        <di:waypoint x="920" y="275" />
+        <di:waypoint x="920" y="200" />
+        <di:waypoint x="1012" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorSelected" bpmnElement="Flow_ToContractorSelected">
+        <di:waypoint x="920" y="325" />
+        <di:waypoint x="920" y="400" />
+        <di:waypoint x="1012" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorTender" bpmnElement="Flow_ToContractorTender">
+        <di:waypoint x="1048" y="200" />
+        <di:waypoint x="1115" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorDecision" bpmnElement="Flow_ToContractorDecision">
+        <di:waypoint x="1048" y="400" />
+        <di:waypoint x="1115" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorQuotationAccepted" bpmnElement="Flow_ToContractorQuotationAccepted">
+        <di:waypoint x="1140" y="175" />
+        <di:waypoint x="1140" y="120" />
+        <di:waypoint x="1242" y="120" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorQuotationsRejected" bpmnElement="Flow_ToContractorQuotationsRejected">
+        <di:waypoint x="1140" y="225" />
+        <di:waypoint x="1140" y="250" />
+        <di:waypoint x="1242" y="250" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorAccepted" bpmnElement="Flow_ToContractorAccepted">
+        <di:waypoint x="1140" y="375" />
+        <di:waypoint x="1140" y="350" />
+        <di:waypoint x="1242" y="350" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToContractorDeclined" bpmnElement="Flow_ToContractorDeclined">
+        <di:waypoint x="1140" y="425" />
+        <di:waypoint x="1140" y="480" />
+        <di:waypoint x="1242" y="480" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ContractorQuotationToReview" bpmnElement="Flow_ContractorQuotationToReview">
+        <di:waypoint x="1278" y="120" />
+        <di:waypoint x="1390" y="120" />
+        <di:waypoint x="1390" y="275" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ContractorAcceptedToReview" bpmnElement="Flow_ContractorAcceptedToReview">
+        <di:waypoint x="1278" y="350" />
+        <di:waypoint x="1390" y="350" />
+        <di:waypoint x="1390" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ContractorQuotationsRejectedBack" bpmnElement="Flow_ContractorQuotationsRejectedBack">
+        <di:waypoint x="1260" y="268" />
+        <di:waypoint x="1260" y="560" />
+        <di:waypoint x="820" y="560" />
+        <di:waypoint x="820" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ContractorDeclinedBack" bpmnElement="Flow_ContractorDeclinedBack">
+        <di:waypoint x="1260" y="498" />
+        <di:waypoint x="1260" y="580" />
+        <di:waypoint x="820" y="580" />
+        <di:waypoint x="820" y="325" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToLicenceReview" bpmnElement="Flow_ToLicenceReview">
+        <di:waypoint x="1415" y="300" />
+        <di:waypoint x="1465" y="300" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToLicenceApproved" bpmnElement="Flow_ToLicenceApproved">
+        <di:waypoint x="1490" y="275" />
+        <di:waypoint x="1490" y="200" />
+        <di:waypoint x="1582" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToLicenceRejected" bpmnElement="Flow_ToLicenceRejected">
+        <di:waypoint x="1490" y="325" />
+        <di:waypoint x="1490" y="400" />
+        <di:waypoint x="1582" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ApprovedToConstruction" bpmnElement="Flow_ApprovedToConstruction">
+        <di:waypoint x="1618" y="200" />
+        <di:waypoint x="1685" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_RejectedToEnd" bpmnElement="Flow_RejectedToEnd">
+        <di:waypoint x="1618" y="400" />
+        <di:waypoint x="1692" y="400" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ToAwaitProgressReport" bpmnElement="Flow_ToAwaitProgressReport">
+        <di:waypoint x="1735" y="200" />
+        <di:waypoint x="1812" y="200" />
+      </bpmndi:BPMNEdge>
+      <bpmndi:BPMNEdge id="Edge_Flow_ProgressReportBack" bpmnElement="Flow_ProgressReportBack">
+        <di:waypoint x="1830" y="182" />
+        <di:waypoint x="1830" y="90" />
+        <di:waypoint x="1710" y="90" />
+        <di:waypoint x="1710" y="175" />
+      </bpmndi:BPMNEdge>
+    </bpmndi:BPMNPlane>
+  </bpmndi:BPMNDiagram>
+</bpmn:definitions>

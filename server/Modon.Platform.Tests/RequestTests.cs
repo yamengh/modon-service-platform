@@ -52,14 +52,21 @@ public class RequestTests(ModonAppFactory factory)
     }
 
     [Fact]
-    public async Task BuildingLicence_DoesNotAcceptApplicationsYet()
+    public async Task BuildingLicence_AcceptsApplicationsFromInvestorsOnly()
     {
-        var client = await factory.LoginAs("investor@modon.local");
+        // Milestone 6 opened the building licence (it was refused with serviceNotOpen before).
+        var investor = await factory.LoginAs("investor@modon.local");
+        var contractor = await factory.LoginAs("contractor@modon.local");
 
-        var res = await client.PostAsJsonAsync(RequestsUrl, new { serviceCode = "building-licence" });
+        var created = await investor.PostAsJsonAsync(RequestsUrl, new { serviceCode = "building-licence" });
+        var refused = await contractor.PostAsJsonAsync(RequestsUrl, new { serviceCode = "building-licence" });
+        var unknown = await investor.PostAsJsonAsync(RequestsUrl, new { serviceCode = "no-such-service" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, res.StatusCode);
-        Assert.Equal(ProblemCodes.ServiceNotOpen, await ProblemTitle(res));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, refused.StatusCode);
+        Assert.Equal(ProblemCodes.RoleNotAllowed, await ProblemTitle(refused));
+        Assert.Equal(HttpStatusCode.BadRequest, unknown.StatusCode);
+        Assert.Equal(ProblemCodes.ServiceNotOpen, await ProblemTitle(unknown));
     }
 
     [Fact]

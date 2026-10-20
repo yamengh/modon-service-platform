@@ -3,9 +3,9 @@ using System.Xml.Linq;
 namespace Modon.Platform.Tests.Camunda;
 
 /// <summary>
-/// A tiny interpreter for the BPMN elements the excavation process uses (start/end events, exclusive merge
-/// gateways, an event-based gateway and message catch events). It reads the checked-in BPMN, so the fake
-/// Camunda in the tests follows the real model rather than a hand-written copy of it.
+/// A tiny interpreter for the BPMN elements Modon's processes use (start/end events, exclusive merge gateways,
+/// event-based gateways and message catch events). It reads the checked-in BPMNs, so the fake Camunda in the
+/// tests follows the real models rather than hand-written copies of them.
 /// </summary>
 public sealed class BpmnModel
 {
@@ -15,6 +15,7 @@ public sealed class BpmnModel
     public sealed record Element(string Id, string Type, string? MessageName, string[] Outgoing);
 
     public string ProcessId { get; }
+    public string ProcessName { get; }
     public string? VersionTag { get; }
     public IReadOnlyDictionary<string, Element> Elements { get; }
 
@@ -31,6 +32,7 @@ public sealed class BpmnModel
 
         var process = doc.Root.Elements(Bpmn + "process").Single();
         ProcessId = (string)process.Attribute("id")!;
+        ProcessName = (string?)process.Attribute("name") ?? ProcessId;
         VersionTag = (string?)process.Descendants(Zeebe + "versionTag").FirstOrDefault()?.Attribute("value");
 
         var flows = process.Elements(Bpmn + "sequenceFlow")
@@ -47,6 +49,8 @@ public sealed class BpmnModel
     }
 
     public static BpmnModel Load() => new(Modon.Platform.Requests.Workflow.Camunda.ExcavationProcess.LoadBpmn());
+
+    public static BpmnModel Load(Modon.Platform.Requests.Workflow.Camunda.CamundaProcessContract contract) => new(contract.LoadBpmn());
 
     /// <summary>Camunda's element type names, as the search API returns them.</summary>
     private static string TypeOf(string localName) => localName switch

@@ -69,17 +69,27 @@ export function useReviewerBackend(user: Me = reviewer) {
 export const workflowReady: WorkflowStatusReport = {
   engine: "camunda",
   ready: true,
-  summary: "Camunda 8.9.21 at http://127.0.0.1:8080: process 'modon-excavation-permit' version 2 is deployed.",
+  summary: "Camunda 8.9.21 at http://127.0.0.1:8080: process 'modon-excavation-permit' version 2 and process 'modon-building-licence' version 1 are deployed.",
   camunda: {
     restAddress: "http://127.0.0.1:8080", authStrategy: "NONE", reachable: true, gatewayVersion: "8.9.21", brokers: 1,
     partitionsHealthy: true, processId: "modon-excavation-permit", processDeployed: true, deployedVersion: 2,
     deployedVersionTag: "1.0.0", checkedInVersionTag: "1.0.0", processDefinitionKey: "2251799813721445", error: null,
+    processes: [
+      { serviceCode: "excavation-permit", processId: "modon-excavation-permit", bpmnFile: "excavation-permit.bpmn", deployed: true,
+        deployedVersion: 2, deployedVersionTag: "1.0.0", checkedInVersionTag: "1.0.0", processDefinitionKey: "2251799813721445" },
+      { serviceCode: "building-licence", processId: "modon-building-licence", bpmnFile: "building-licence.bpmn", deployed: true,
+        deployedVersion: 1, deployedVersionTag: "1.0.0", checkedInVersionTag: "1.0.0", processDefinitionKey: "2251799813730001" },
+    ],
   },
 };
 
 export const summary: ReviewSummary = {
   total: 9,
-  byStatus: { inProgress: 4, returnedForCompletion: 2, awaitingCoordinationLetters: 0, approved: 2, rejected: 1, cancelled: 0 },
+  byStatus: {
+    inProgress: 4, returnedForCompletion: 2, awaitingCoordinationLetters: 0, approved: 2, rejected: 1, cancelled: 0,
+    consultantSelection: 0, consultantTender: 0, awaitingConsultantDecision: 0, contractorSelection: 0, contractorTender: 0,
+    awaitingContractorDecision: 0, underModonReview: 0,
+  },
 };
 
 export function queueItem(overrides: Partial<ReviewQueueItem> = {}): ReviewQueueItem {
@@ -131,6 +141,7 @@ export function reviewDetail(overrides: Partial<ReviewRequestDetail> = {}): Revi
     ],
     availableDecisions: ["approve", "returnForCompletion", "reject"],
     workflow: { engine: "camunda", processInstanceKey: "2251799813721500", processDefinitionVersion: 2 },
+    building: null,
     coordinationLetterSlots: [
       slot("secCoordinationLetter", "خطاب تنسيق الشركة السعودية للكهرباء", "Saudi Electricity Company coordination letter"),
       slot("nationalGridCoordinationLetter", "خطاب تنسيق الشركة الوطنية لنقل الكهرباء", "National Grid coordination letter"),

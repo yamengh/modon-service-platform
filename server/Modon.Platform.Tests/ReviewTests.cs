@@ -100,7 +100,9 @@ public class ReviewTests(ModonAppFactory factory)
         Assert.DoesNotContain(approved.Items, i => i.Id == stillOpen.Id);
         Assert.Contains(inProgress.Items, i => i.Id == stillOpen.Id);
         Assert.All(inProgress.Items, i => Assert.Equal(("excavation-permit", RequestStatus.InProgress), (i.ServiceCode, i.Status)));
-        Assert.Equal(0, buildingLicences.Total);
+        // Building-licence requests exist since Milestone 6; the service filter returns only those.
+        Assert.All(buildingLicences.Items, i => Assert.Equal("building-licence", i.ServiceCode));
+        Assert.DoesNotContain(buildingLicences.Items, i => i.Id == toApprove.Id || i.Id == stillOpen.Id);
         Assert.Equal((1, 2), (paged.Items.Length, paged.Page));
         Assert.True(paged.Total >= 2);
 
@@ -385,6 +387,9 @@ public class ReviewTests(ModonAppFactory factory)
         var json = await res.Content.ReadFromJsonAsync<JsonElement>();
 
         var keys = json.GetProperty("byStatus").EnumerateObject().Select(p => p.Name).ToArray();
-        Assert.Equal(["inProgress", "returnedForCompletion", "awaitingCoordinationLetters", "approved", "rejected", "cancelled"], keys);
+        Assert.Equal(["inProgress", "returnedForCompletion", "awaitingCoordinationLetters", "approved", "rejected", "cancelled",
+            // building licence (Milestones 6–8)
+            "consultantSelection", "consultantTender", "awaitingConsultantDecision", "contractorSelection", "contractorTender",
+            "awaitingContractorDecision", "underModonReview"], keys);
     }
 }

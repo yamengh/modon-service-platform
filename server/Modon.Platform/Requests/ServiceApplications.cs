@@ -27,15 +27,16 @@ public sealed record ServiceApplication(
     public IEnumerable<AttachmentSlot> AllSlots => Slots.Concat(CoordinationSlots);
 }
 
-/// <summary>
-/// Which services can be applied for in this milestone. The building licence is in the catalogue
-/// but not here yet, so the API refuses to create requests for it.
-/// </summary>
+/// <summary>Which services can be applied for, who applies, and their upload slots.</summary>
 public static class ServiceApplications
 {
     public const int MaxFileSizeKb = 20480;
     private static readonly string[] Images = [".jpeg", ".jpg", ".png"];
     private static readonly string[] ImagesAndPdf = [".jpeg", ".pdf", ".jpg", ".png"];
+    private static readonly string[] PdfAndPng = [".pdf", ".png"];
+
+    /// <summary>"JPEG,JPG,PNG,PDF,Doc,Docx,XLS,XLSX" — the building manual's general-attachment formats.</summary>
+    public static readonly string[] OfficeDocuments = [".jpeg", ".jpg", ".png", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
 
     public static readonly ServiceApplication ExcavationPermit = new(
         ServiceCatalogData.ExcavationPermitCode,
@@ -62,8 +63,25 @@ public static class ServiceApplications
                 "East electricity service office coordination letter", true, MaxFileSizeKb, ImagesAndPdf),
         ]);
 
+    /// <summary>
+    /// Building licence (رخصة البناء), applied for by investors. The manual's upload boxes allow PDF/PNG plans and a
+    /// general attachment of up to 10,240 KB. The plans' 1,000,000 KB limit in the manual is capped at the platform's
+    /// 20,480 KB, and each slot holds one file (the manual allows up to five) — see MODON.md.
+    /// </summary>
+    public static readonly ServiceApplication BuildingLicence = new(
+        ServiceCatalogData.BuildingLicenceCode,
+        NumberPrefix: "BLR",
+        ApplicantRoles: [ModonRoles.Investor],
+        Slots:
+        [
+            new("approvedGeneralPlans", "المخططات العامة المعتمدة الصادرة", "Issued approved general plans", true, MaxFileSizeKb, PdfAndPng),
+            new("approvedSafetyPlans", "مخططات السلامة المعتمدة الصادرة", "Issued approved safety plans", true, MaxFileSizeKb, PdfAndPng),
+            new("generalAttachment", "مرفق عام خاص", "Private general attachment", false, 10240, OfficeDocuments),
+        ],
+        CoordinationSlots: []);
+
     private static readonly Dictionary<string, ServiceApplication> ByCode =
-        new[] { ExcavationPermit }.ToDictionary(x => x.ServiceCode);
+        new[] { ExcavationPermit, BuildingLicence }.ToDictionary(x => x.ServiceCode);
 
     public static ServiceApplication? Find(string serviceCode) => ByCode.GetValueOrDefault(serviceCode);
 }

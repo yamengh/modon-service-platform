@@ -140,6 +140,7 @@ export function excavationRequest(overrides: Partial<RequestDetail> = {}): Reque
     coordinationLetterSlots,
     canUploadCoordinationLetters: false,
     currentTask: null,
+    building: null,
     ...overrides,
   };
 }

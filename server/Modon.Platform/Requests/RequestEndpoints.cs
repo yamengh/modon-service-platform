@@ -7,7 +7,7 @@ namespace Modon.Platform.Requests;
 public static class RequestEndpoints
 {
     /// <summary>Upload requests may carry one 20,480 KB file plus multipart overhead.</summary>
-    private const long MaxUploadRequestBytes = ServiceApplications.MaxFileSizeKb * 1024L + 1024 * 1024;
+    internal const long MaxUploadRequestBytes = ServiceApplications.MaxFileSizeKb * 1024L + 1024 * 1024;
 
     public static void MapRequestEndpoints(this WebApplication app)
     {
@@ -31,11 +31,15 @@ public static class RequestEndpoints
         requests.MapGet("/{id:long}", (RequestService s, HttpContext ctx, long id, CancellationToken ct)
             => s.GetAsync(User(ctx), id, ct));
 
+        requests.MapPut("/{id:long}/building",
+            (RequestService s, HttpContext ctx, long id, Building.BuildingLicenceDto body, CancellationToken ct)
+                => s.SaveBuildingAsync(User(ctx), id, body, ct));
+
         requests.MapPut("/{id:long}/excavation",
             (RequestService s, HttpContext ctx, long id, ExcavationDto body, CancellationToken ct)
                 => s.SaveExcavationAsync(User(ctx), id, body, ct));
 
-        // Submits a draft, or resubmits a returned request.
+        // Submits a draft (excavation or building licence), or resubmits a returned excavation request.
         requests.MapPost("/{id:long}/submit", (RequestService s, HttpContext ctx, long id, CancellationToken ct)
             => s.SubmitAsync(User(ctx), id, ct));
 
@@ -58,12 +62,14 @@ public static class RequestEndpoints
         requests.MapGet("/{id:long}/attachments/{slot}",
             (RequestService s, HttpContext ctx, long id, string slot, CancellationToken ct)
                 => s.DownloadAsync(User(ctx), id, slot, ct));
+
+        Building.BuildingEndpoints.Map(modon, requests);
     }
 
     private const string UserKey = "modon.user";
 
     /// <summary>Returns 401 for anonymous callers and stores the FormCMS user for the handler.</summary>
-    private static async ValueTask<object?> RequireSignedIn(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
+    internal static async ValueTask<object?> RequireSignedIn(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {
         var http = ctx.HttpContext;
         var user = http.RequestServices.GetRequiredService<IIdentityService>().GetUserAccess();
@@ -73,5 +79,5 @@ public static class RequestEndpoints
         return await next(ctx);
     }
 
-    private static UserAccess User(HttpContext ctx) => (UserAccess)ctx.Items[UserKey]!;
+    internal static UserAccess User(HttpContext ctx) => (UserAccess)ctx.Items[UserKey]!;
 }

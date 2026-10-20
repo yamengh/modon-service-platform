@@ -134,6 +134,11 @@ export const api = {
     return `${reviewUrl(id)}/attachments/${encodeURIComponent(slot)}`;
   },
 
+  /** Building licence: an office's quotation attachment or a progress-report attachment. */
+  buildingFileUrl(id: number, kind: "quotations" | "progress-reports", fileId: number): string {
+    return `${reviewUrl(id)}/building/${kind}/${fileId}/attachment`;
+  },
+
   /** Catalogue services (FormCMS saved query), for the service filter. */
   async listServices(): Promise<ServiceSummary[]> {
     return (await json<ServiceSummary[] | null>(await request("/api/queries/modonServices"))) ?? [];

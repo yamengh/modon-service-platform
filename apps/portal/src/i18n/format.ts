@@ -37,3 +37,15 @@ export function formatSize(bytes: number, lang: Lang): string {
   const kb = Math.max(1, Math.round(bytes / 1024));
   return kb >= 1024 ? `${(kb / 1024).toFixed(1)} MB` : `${kb} ${lang === "ar" ? "ك.ب" : "KB"}`;
 }
+
+/** An amount in riyals with Latin digits and thousands separators, as in the manual (10,000,000). */
+export function formatAmount(value: number | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  return value.toLocaleString("en-US", { maximumFractionDigits: 2 });
+}
+
+/** "yyyy-MM" → MM/yyyy. */
+export function formatPeriod(period: string): string {
+  const [y, m] = period.split("-");
+  return `${m}/${y}`;
+}

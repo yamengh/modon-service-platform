@@ -1,5 +1,4 @@
-using System.Reflection;
-using System.Xml.Linq;
+using Modon.Platform.Catalog;
 
 namespace Modon.Platform.Requests.Workflow.Camunda;
 
@@ -40,19 +39,14 @@ public static class ExcavationProcess
         ["End_Rejected"] = RequestStatus.Rejected,
     };
 
+    /// <summary>This process as one of the processes the Camunda adapter drives.</summary>
+    public static readonly CamundaProcessContract Contract = new(
+        ServiceCatalogData.ExcavationPermitCode, DefaultProcessId, "excavation-permit.bpmn", BpmnResourceName,
+        Messages, StatusByElement);
+
     /// <summary>The checked-in BPMN, exactly as it should be deployed.</summary>
-    public static string LoadBpmn()
-    {
-        using var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(BpmnResourceName)
-                           ?? throw new InvalidOperationException($"Embedded resource {BpmnResourceName} is missing.");
-        using var reader = new StreamReader(stream);
-        return reader.ReadToEnd();
-    }
+    public static string LoadBpmn() => Contract.LoadBpmn();
 
     /// <summary>The checked-in BPMN's <c>zeebe:versionTag</c>, to compare with the deployed one.</summary>
-    public static string? CheckedInVersionTag()
-    {
-        XNamespace zeebe = "http://camunda.org/schema/zeebe/1.0";
-        return XDocument.Parse(LoadBpmn()).Descendants(zeebe + "versionTag").FirstOrDefault()?.Attribute("value")?.Value;
-    }
+    public static string? CheckedInVersionTag() => Contract.CheckedInVersionTag();
 }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api, ApiError } from "../api/client";
 import type { AttachmentSlot, Decision, ExcavationData, LookupCategory, ReviewRequestDetail } from "../api/types";
+import { BuildingSections } from "../components/BuildingReview";
 import { DecisionPanel } from "../components/DecisionPanel";
 import { StatusBadge } from "../components/StatusBadge";
 import { WorkflowPanel } from "../components/WorkflowPanel";
@@ -158,7 +159,8 @@ export function ReviewRequestPage() {
             </dl>
           </div>
 
-          {sections.map(([title, fields]) => (
+          {r.building && <BuildingSections request={r} />}
+          {!r.building && sections.map(([title, fields]) => (
             <div key={title} className="card read-section">
               <h2>{t(title)}</h2>
               <dl className="read-grid">
@@ -188,6 +190,7 @@ export function ReviewRequestPage() {
         <aside className="side">
           <div className="card">
             <h2>{t("decision")}</h2>
+            {r.building && r.availableDecisions.length > 0 && <p className="hint">{t("buildingDecisionNote")}</p>}
             <DecisionPanel request={r} onDecided={onDecided} onConflict={onConflict} />
           </div>
           <WorkflowPanel key={`${r.id}-${r.status}`} request={r} />

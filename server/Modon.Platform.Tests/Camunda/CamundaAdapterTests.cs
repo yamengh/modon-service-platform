@@ -39,8 +39,11 @@ public class CamundaAdapterTests
             Assert.Equal("=" + ExcavationProcess.CorrelationKeyVariable, model.Messages[message]); // every subscription uses correlationKey
         Assert.Equal(ExcavationProcess.Messages.Values.Order(), model.Messages.Keys.Order());
         foreach (var element in ExcavationProcess.StatusByElement.Keys) Assert.True(model.Elements.ContainsKey(element), element);
-        // The adapter maps every reviewer and applicant action except the first submission (which starts the process).
-        var mapped = Enum.GetValues<RequestAction>().Except([RequestAction.Create, RequestAction.Submit]);
+        // The adapter maps every action of the excavation lifecycle except the first submission (which starts the process).
+        var rules = new InProcessRequestWorkflow();
+        var mapped = Enum.GetValues<RequestAction>()
+            .Where(a => Enum.GetValues<RequestStatus>().Any(s => rules.Allows(ExcavationProcess.Contract.ServiceCode, s, a)))
+            .Except([RequestAction.Submit]);
         Assert.Equal(mapped.Order(), ExcavationProcess.Messages.Keys.Order());
     }
 

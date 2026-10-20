@@ -5,7 +5,7 @@ import type { TaskItem } from "../api/types";
 import { StatusBadge } from "../components/StatusBadge";
 import { useI18n } from "../i18n/I18nContext";
 import { formatDate } from "../i18n/format";
-import { actionPath } from "../requests/serviceAvailability";
+import { taskPath } from "../requests/serviceAvailability";
 
 type Load = { status: "loading" } | { status: "error" } | { status: "ready"; tasks: TaskItem[] };
 
@@ -52,11 +52,12 @@ export function TasksPage() {
             </thead>
             <tbody>
               {load.tasks.map((task) => {
-                const path = actionPath(task.serviceCode, task.requestId, task.status) ?? `/requests/${task.requestId}`;
+                const path = taskPath(task);
                 return (
                   <tr key={task.requestId}>
                     <td>
-                      <Link to={`/requests/${task.requestId}`}>
+                      {/* Offices cannot open the investor's request page; they see the project instead. */}
+                      <Link to={task.kind === "respondAsConsultant" || task.kind === "respondAsContractor" ? path : `/requests/${task.requestId}`}>
                         <bdi>{task.requestNumber}</bdi>
                       </Link>
                     </td>

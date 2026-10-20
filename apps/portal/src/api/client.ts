@@ -1,5 +1,13 @@
 import type {
   AttachmentInfo,
+  BuildingLicenceData,
+  BuildingStage,
+  OfficeInfo,
+  OfficeResponse,
+  PartnerProjectDetail,
+  PartnerProjectSummary,
+  ProgressReportInput,
+  SelectionMode,
   Establishment,
   ExcavationData,
   FieldErrors,
@@ -159,4 +167,90 @@ export const api = {
   attachmentUrl(id: number, slot: string): string {
     return `${requestUrl(id)}/attachments/${encodeURIComponent(slot)}`;
   },
+
+  // --- Building licence: investor ------------------------------------------------------------
+
+  /** Saves a building-licence draft. The backend checks formats but allows missing fields. */
+  async saveBuilding(id: number, data: BuildingLicenceData): Promise<RequestDetail> {
+    return json(await request(`${requestUrl(id)}/building`, { method: "PUT", body: JSON.stringify(data) }));
+  },
+
+  /** "المشروع" (open project) or a specific office, for the consultant or contractor stage. */
+  async chooseOffice(id: number, stage: BuildingStage, mode: SelectionMode, establishmentId?: number): Promise<RequestDetail> {
+    return json(
+      await request(`${requestUrl(id)}/building/${stage}/selection`, {
+        method: "POST",
+        body: JSON.stringify({ mode, establishmentId: establishmentId ?? null }),
+      }),
+    );
+  },
+
+  async acceptQuotation(id: number, stage: BuildingStage, quotationId: number): Promise<RequestDetail> {
+    return json(await request(`${requestUrl(id)}/building/${stage}/quotations/${quotationId}/accept`, { method: "POST" }));
+  },
+
+  /** "رفض جميع العروض / إلغاء المشروع". */
+  async rejectQuotations(id: number, stage: BuildingStage, comment?: string): Promise<RequestDetail> {
+    return json(
+      await request(`${requestUrl(id)}/building/${stage}/quotations/reject-all`, {
+        method: "POST",
+        body: JSON.stringify({ comment: comment || null }),
+      }),
+    );
+  },
+
+  /** Registered consulting offices or contractors, for a direct choice. */
+  async listOffices(stage: BuildingStage): Promise<OfficeInfo[]> {
+    return json(await request(`/api/modon/building/offices?stage=${stage}`));
+  },
+
+  /** An office's quotation attachment or a progress report's attachment on the investor's own request. */
+  buildingFileUrl(id: number, kind: "quotations" | "progress-reports", fileId: number): string {
+    return `${requestUrl(id)}/building/${kind}/${fileId}/attachment`;
+  },
+
+  // --- Building licence: consulting offices and contractors ---------------------------------
+
+  async listProjects(): Promise<PartnerProjectSummary[]> {
+    return json(await request("/api/modon/building/projects"));
+  },
+
+  async getProject(id: number): Promise<PartnerProjectDetail> {
+    return json(await request(`/api/modon/building/projects/${id}`));
+  },
+
+  async submitQuotation(id: number, establishmentId: number, amountSar: number, comment: string | null): Promise<PartnerProjectDetail> {
+    return json(
+      await request(`/api/modon/building/projects/${id}/quotations`, {
+        method: "POST",
+        body: JSON.stringify({ establishmentId, amountSar, comment }),
+      }),
+    );
+  },
+
+  /** The invited office's answer. Returns null after a rejection (the office loses access to the project). */
+  async respondToInvitation(id: number, body: OfficeResponse, file?: File | null): Promise<PartnerProjectDetail | null> {
+    return jsonOrNull(await request(`/api/modon/building/projects/${id}/response`, withFile(body, file)));
+  },
+
+  async submitProgressReport(id: number, body: ProgressReportInput, file?: File | null): Promise<PartnerProjectDetail> {
+    return json(await request(`/api/modon/building/projects/${id}/progress-reports`, withFile(body, file)));
+  },
+
+  projectAttachmentUrl(id: number, slot: string): string {
+    return `/api/modon/building/projects/${id}/attachments/${encodeURIComponent(slot)}`;
+  },
+
+  projectFileUrl(id: number, kind: "quotations" | "progress-reports", fileId: number): string {
+    return `/api/modon/building/projects/${id}/${kind}/${fileId}/attachment`;
+  },
 };
+
+/** JSON body, or multipart ("data" = JSON, "file") when a file is attached. */
+function withFile(body: object, file?: File | null): RequestInit {
+  if (!file) return { method: "POST", body: JSON.stringify(body) };
+  const form = new FormData();
+  form.append("data", JSON.stringify(body));
+  form.append("file", file);
+  return { method: "POST", body: form };
+}

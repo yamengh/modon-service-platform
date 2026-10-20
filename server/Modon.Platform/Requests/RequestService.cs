@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Modon.Platform.Catalog;
 using Modon.Platform.Data;
 using Modon.Platform.Documents;
+using Modon.Platform.Requests.Building;
 using Modon.Platform.Requests.Workflow;
 
 namespace Modon.Platform.Requests;
@@ -22,6 +23,7 @@ public sealed class RequestService(
     IPrivateDocumentStore documents,
     ServiceCatalogNames serviceNames,
     RequestTransitions transitions,
+    BuildingService building,
     TimeProvider clock,
     ILogger<RequestService> logger)
 {
@@ -40,7 +42,8 @@ public sealed class RequestService(
             ApplicantUserId = user.Id,
             CreatedAt = now,
             UpdatedAt = now,
-            Excavation = new ExcavationPermitDetails(),
+            Excavation = service == ServiceApplications.ExcavationPermit ? new ExcavationPermitDetails() : null,
+            Building = service == ServiceApplications.BuildingLicence ? new BuildingLicenceDetails() : null,
         };
         request.History.Add(new RequestStatusHistory
         {
@@ -90,7 +93,7 @@ public sealed class RequestService(
             .ToListAsync(ct);
         var names = await serviceNames.AllAsync(ct);
 
-        return Results.Ok(requests
+        var excavationTasks = requests
             .Where(r => ServiceApplications.Find(r.ServiceCode) is { } service && HasApplicantRole(user, service))
             .Select(r =>
             {
@@ -98,10 +101,18 @@ public sealed class RequestService(
                 var (ar, en) = names.GetValueOrDefault(r.ServiceCode, (r.ServiceCode, r.ServiceCode));
                 return new TaskItem(r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status,
                     task.Kind, task.Instructions, task.AssignedAt, r.SubmittedAt);
-            })
+            });
+        // Building licence: the investor's stage decisions and the invitations of the user's offices.
+        var buildingTasks = await building.TasksAsync(user,
+            names.GetValueOrDefault(ServiceCatalogData.BuildingLicenceCode, (ServiceCatalogData.BuildingLicenceCode, ServiceCatalogData.BuildingLicenceCode)), ct);
+
+        return Results.Ok(excavationTasks.Concat(buildingTasks)
             .OrderByDescending(t => t.AssignedAt).ThenByDescending(t => t.RequestId)
             .ToArray());
     }
+
+    public Task<bool> OwnsAsync(UserAccess user, long id, CancellationToken ct)
+        => db.ServiceRequests.AnyAsync(r => r.Id == id && r.ApplicantUserId == user.Id, ct);
 
     public async Task<IResult> GetAsync(UserAccess user, long id, CancellationToken ct)
     {
@@ -113,7 +124,8 @@ public sealed class RequestService(
     {
         var (request, _, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
-        if (!workflow.IsEditableByApplicant(request!.Status)) return Problem(409, ProblemCodes.RequestNotEditable);
+        if (request!.ServiceCode != ServiceCatalogData.ExcavationPermitCode) return Problem(400, ProblemCodes.WrongService);
+        if (!workflow.IsEditableByApplicant(request.Status)) return Problem(409, ProblemCodes.RequestNotEditable);
 
         var dto = body.Normalized();
         var errors = await validator.ValidateAsync(dto, ValidationMode.Draft, user.Id, [], ct);
@@ -125,11 +137,17 @@ public sealed class RequestService(
         return await SaveOrConflictAsync(ct) ?? Results.Ok(await ToDetailAsync(request, ct));
     }
 
+    /// <summary>Saves a building-licence draft (the building service checks and applies it).</summary>
+    public async Task<IResult> SaveBuildingAsync(UserAccess user, long id, BuildingLicenceDto body, CancellationToken ct)
+        => await building.SaveDraftAsync(user, id, body, ct) ?? await GetAsync(user, id, ct);
+
     /// <summary>Submits a draft, or resubmits a returned request (same request, same number).</summary>
     public async Task<IResult> SubmitAsync(UserAccess user, long id, CancellationToken ct)
     {
         var (request, _, denied) = await LoadActionableAsync(user, id, ct);
         if (denied is not null) return denied;
+        if (request!.ServiceCode == ServiceCatalogData.BuildingLicenceCode)
+            return await building.SubmitAsync(user, request, ct) ?? Results.Ok(await ToDetailAsync(request, ct));
         if (!workflow.IsEditableByApplicant(request!.Status) || workflow.ApplicantSubmitAction(request.Status) is not { } action)
             return Problem(409, ProblemCodes.RequestNotEditable);
 
@@ -277,6 +295,7 @@ public sealed class RequestService(
     private Task<ServiceRequest?> LoadOwnedAsync(UserAccess user, long id, CancellationToken ct)
         => db.ServiceRequests
             .Include(r => r.Excavation)
+            .Include(r => r.Building).ThenInclude(b => b!.Contacts)
             .Include(r => r.Attachments)
             .Include(r => r.History)
             .AsSplitQuery()
@@ -354,6 +373,7 @@ public sealed class RequestService(
         var service = ServiceApplications.Find(r.ServiceCode);
         var slots = service?.Slots ?? [];
         var letterSlots = service?.CoordinationSlots ?? [];
+        var isBuilding = r.ServiceCode == ServiceCatalogData.BuildingLicenceCode;
         return new RequestDetail(
             r.Id, r.RequestNumber, r.ServiceCode, ar, en, r.Status,
             workflow.IsEditableByApplicant(r.Status),
@@ -365,13 +385,14 @@ public sealed class RequestService(
                 .Select(h => new HistoryItem(h.FromStatus, h.ToStatus, h.Action, h.OccurredAt, h.Comment)).ToArray(),
             letterSlots,
             workflow.AcceptsCoordinationLetters(r.Status) && letterSlots.Length > 0,
-            r.CurrentTask(workflow));
+            isBuilding ? await building.CurrentTaskAsync(r, ct) : r.CurrentTask(workflow),
+            isBuilding ? await building.ViewAsync(r, forInvestor: true, ct) : null);
     }
 
     private static bool HasApplicantRole(UserAccess user, ServiceApplication service)
         => service.ApplicantRoles.Any(user.Roles.Contains);
 
-    private static string SafeFileName(string fileName, string extension)
+    internal static string SafeFileName(string fileName, string extension)
     {
         var name = Path.GetFileNameWithoutExtension(Path.GetFileName(fileName ?? ""));
         name = new string(name.Where(c => !char.IsControl(c) && !Path.GetInvalidFileNameChars().Contains(c)).ToArray()).Trim();

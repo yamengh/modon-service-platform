@@ -8,7 +8,13 @@ export function TaskPanel({ task, children }: { task: ApplicantTask; children?: 
   const { t } = useI18n();
   return (
     <section className="card task-panel" aria-labelledby="task-title">
-      <h2 id="task-title">{task.kind === "completeReturnedRequest" ? t("returnedTitle") : t("lettersTitle")}</h2>
+      <h2 id="task-title">
+        {task.kind === "completeReturnedRequest"
+          ? t("returnedTitle")
+          : task.kind === "uploadCoordinationLetters"
+            ? t("lettersTitle")
+            : t(`task.${task.kind}`)}
+      </h2>
       <p className="meta">
         {t("taskDate")}: {formatDateTime(task.assignedAt)}
       </p>

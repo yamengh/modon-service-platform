@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { api, ApiError } from "../api/client";
 import type { RequestSummary } from "../api/types";
 import { allAttachments, buildingLicence, completeExcavation, excavationPermit, excavationRequest, investor, renderApp } from "../test/render";
+import { buildingRequest } from "../test/buildingMocks";
 import { useExcavationBackend } from "../test/excavationMocks";
 
 vi.mock("../api/client", async (importOriginal) => {
@@ -133,14 +134,19 @@ describe("Start service", () => {
     expect(await screen.findByRole("button", { name: "حفظ كمسودة" })).toBeInTheDocument();
   });
 
-  it("keeps the building licence closed and says it comes later", async () => {
+  it("opens the building licence for investors and goes to its form (Milestone 6)", async () => {
     vi.mocked(api.getPersonas).mockResolvedValue(investor);
     vi.mocked(api.getService).mockResolvedValue(buildingLicence);
+    vi.mocked(api.createRequest).mockResolvedValue(buildingRequest());
+    vi.mocked(api.getRequest).mockResolvedValue(buildingRequest());
+    vi.mocked(api.myEstablishments).mockResolvedValue([]);
     renderApp("/services/building-licence");
 
-    expect(await screen.findByRole("button", { name: "بدء الخدمة" })).toBeDisabled();
-    expect(screen.getByText(/وسيتوفر في مرحلة لاحقة من المشروع/)).toBeInTheDocument();
-    expect(api.createRequest).not.toHaveBeenCalled();
+    await userEvent.click(await screen.findByRole("button", { name: "بدء الخدمة" }));
+
+    expect(api.createRequest).toHaveBeenCalledWith("building-licence");
+    expect(await screen.findByRole("heading", { name: "طلب رخصة بناء" })).toBeInTheDocument();
+    expect(screen.queryByText(/وسيتوفر في مرحلة لاحقة من المشروع/)).not.toBeInTheDocument();
   });
 
   it("shows an error when the draft cannot be created", async () => {

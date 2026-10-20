@@ -1,4 +1,4 @@
-import type { Persona, RequestStatus } from "../api/types";
+import type { ApplicantTaskKind, Persona, RequestStatus } from "../api/types";
 
 /**
  * Services whose application form exists in the portal, and who may apply.
@@ -13,6 +13,12 @@ export const OPEN_SERVICES: Record<
     formPath: (id) => `/requests/${id}/edit`,
     lettersPath: (id) => `/requests/${id}/coordination-letters`,
   },
+  // The investor's later steps (consultant, contractor) happen on the request page itself.
+  "building-licence": {
+    personas: ["investor"],
+    formPath: (id) => `/requests/${id}/building`,
+    lettersPath: (id) => `/requests/${id}`,
+  },
 };
 
 /** Where to go to act on a request: the form (draft / returned) or the coordination-letters page. */
@@ -22,4 +28,10 @@ export function actionPath(serviceCode: string, id: number, status: RequestStatu
   if (status === "draft" || status === "returnedForCompletion") return service.formPath(id);
   if (status === "awaitingCoordinationLetters") return service.lettersPath(id);
   return null;
+}
+
+/** Where a task leads: offices answer on the project page, investors act on the request page. */
+export function taskPath(task: { kind: ApplicantTaskKind; serviceCode: string; requestId: number; status: RequestStatus }): string {
+  if (task.kind === "respondAsConsultant" || task.kind === "respondAsContractor") return `/projects/${task.requestId}`;
+  return actionPath(task.serviceCode, task.requestId, task.status) ?? `/requests/${task.requestId}`;
 }

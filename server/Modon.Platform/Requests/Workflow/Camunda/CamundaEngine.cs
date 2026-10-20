@@ -11,8 +11,8 @@ public interface ICamundaEngine
 {
     string RestAddress { get; }
 
-    /// <summary>Starts the excavation process (latest deployed version).</summary>
-    Task<WorkflowInstanceLink> StartAsync(string businessId, string correlationKey,
+    /// <summary>Starts the latest deployed version of a process (one of <see cref="CamundaProcesses"/>).</summary>
+    Task<WorkflowInstanceLink> StartAsync(string processId, string businessId, string correlationKey,
         IReadOnlyDictionary<string, object?> variables, CancellationToken ct);
 
     /// <summary>
@@ -25,7 +25,10 @@ public interface ICamundaEngine
     /// <summary>Cancels an instance; an instance that no longer exists is not an error.</summary>
     Task CancelAsync(string processInstanceKey, CancellationToken ct);
 
-    /// <summary>Where an instance currently is (from Camunda's search API, which may lag by about a second).</summary>
+    /// <summary>
+    /// Where an instance currently is (from Camunda's search API, which may lag by about a second), read with the
+    /// element map of the process the instance belongs to.
+    /// </summary>
     Task<EngineInstanceView> GetInstanceAsync(string processInstanceKey, CancellationToken ct);
 
     /// <summary>Connection and deployment diagnostics. Never throws for connection problems.</summary>
@@ -44,6 +47,10 @@ public sealed record EngineInstanceView(
     int? ProcessDefinitionVersion,
     bool HasIncident);
 
+/// <summary>
+/// Connection diagnostics. The top-level process fields describe the excavation process (as before the building
+/// licence was added); <see cref="Processes"/> lists every process Modon drives, each with its own deployment state.
+/// </summary>
 public sealed record CamundaClusterReport(
     string RestAddress,
     string AuthStrategy,
@@ -57,18 +64,32 @@ public sealed record CamundaClusterReport(
     string? DeployedVersionTag,
     string? CheckedInVersionTag,
     string? ProcessDefinitionKey,
-    string? Error);
+    string? Error,
+    IReadOnlyList<CamundaProcessReport> Processes);
+
+/// <summary>One process: whether the configured id is deployed, and which version against the checked-in BPMN.</summary>
+public sealed record CamundaProcessReport(
+    string ServiceCode,
+    string ProcessId,
+    string BpmnFile,
+    bool Deployed,
+    int? DeployedVersion,
+    string? DeployedVersionTag,
+    string? CheckedInVersionTag,
+    string? ProcessDefinitionKey);
 
 public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
 {
     private readonly CamundaClient _client;
     private readonly CamundaWorkflowOptions _options;
+    private readonly CamundaProcesses _processes;
     private readonly ILogger<CamundaSdkEngine> _logger;
 
     /// <param name="handler">Only for tests (a fake cluster) or proxies; null uses a normal HTTP connection.</param>
     public CamundaSdkEngine(WorkflowOptions options, ILoggerFactory loggerFactory, HttpMessageHandler? handler = null)
     {
         _options = options.Camunda;
+        _processes = new CamundaProcesses(options);
         _logger = loggerFactory.CreateLogger<CamundaSdkEngine>();
 
         var config = new Dictionary<string, string>
@@ -97,7 +118,12 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
 
     public string RestAddress => _options.RestAddress;
 
-    public async Task<WorkflowInstanceLink> StartAsync(string businessId, string correlationKey,
+    /// <summary>Starts the excavation process (the configured <see cref="CamundaWorkflowOptions.ProcessId"/>).</summary>
+    public Task<WorkflowInstanceLink> StartAsync(string businessId, string correlationKey,
+        IReadOnlyDictionary<string, object?> variables, CancellationToken ct)
+        => StartAsync(_options.ProcessId, businessId, correlationKey, variables, ct);
+
+    public async Task<WorkflowInstanceLink> StartAsync(string processId, string businessId, string correlationKey,
         IReadOnlyDictionary<string, object?> variables, CancellationToken ct)
     {
         try
@@ -105,7 +131,7 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
             var created = await CallAsync("create process instance", t => _client.CreateProcessInstanceAsync(
                 new ProcessInstanceCreationInstructionById
                 {
-                    ProcessDefinitionId = ProcessDefinitionId.AssumeExists(_options.ProcessId),
+                    ProcessDefinitionId = ProcessDefinitionId.AssumeExists(processId),
                     BusinessId = BusinessId.AssumeExists(businessId),
                     Variables = variables,
                 }, t), ct);
@@ -114,9 +140,10 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
         }
         catch (NotFoundException e)
         {
+            var file = _processes.ForProcessId(processId)?.Contract.BpmnFileName ?? "its BPMN";
             throw new WorkflowUnavailableException(
-                $"Process '{_options.ProcessId}' is not deployed in Camunda at {_options.RestAddress}. " +
-                $"Deploy excavation-permit.bpmn first (see MODON.md). Camunda said: {e.Message}");
+                $"Process '{processId}' is not deployed in Camunda at {_options.RestAddress}. " +
+                $"Deploy {file} first (see MODON.md). Camunda said: {e.Message}");
         }
     }
 
@@ -169,9 +196,11 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
             new ElementInstanceSearchQuery { Filter = new ElementInstanceFilter { ProcessInstanceKey = key } }, ct: t), ct);
 
         // A running instance: the element it waits at. A finished one: the end event it reached.
+        var statusByElement = _processes.ForProcessId(instance.ProcessDefinitionId.Value)?.Contract.StatusByElement
+                              ?? new Dictionary<string, RequestStatus>();
         var active = instance.State == ProcessInstanceStateEnum.ACTIVE;
         var current = elements.Items
-            .Where(e => ExcavationProcess.StatusByElement.ContainsKey(e.ElementId.Value))
+            .Where(e => statusByElement.ContainsKey(e.ElementId.Value))
             .Where(e => active ? e.State == ElementInstanceStateEnum.ACTIVE
                                : e.State == ElementInstanceStateEnum.COMPLETED && e.Type == "END_EVENT")
             .OrderByDescending(e => e.StartDate)
@@ -180,7 +209,7 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
         return new EngineInstanceView(
             processInstanceKey,
             instance.State.ToString(),
-            current is null ? null : ExcavationProcess.StatusByElement[current.ElementId.Value],
+            current is null ? null : statusByElement[current.ElementId.Value],
             current?.ElementId.Value,
             current?.StartDate,
             instance.ProcessDefinitionVersion,
@@ -189,13 +218,18 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
 
     public async Task<CamundaClusterReport> DescribeAsync(CancellationToken ct)
     {
-        var checkedInTag = ExcavationProcess.CheckedInVersionTag();
-        CamundaClusterReport Report(bool reachable, TopologyResponse? topology, ProcessDefinitionResult? latest, string? error) => new(
-            _options.RestAddress, _options.AuthStrategy, reachable,
-            topology?.GatewayVersion, topology?.Brokers?.Count,
-            topology?.Brokers?.All(b => b.Partitions?.All(p => p.Health == "healthy") ?? false) ?? false,
-            _options.ProcessId, latest is not null, latest?.Version, latest?.VersionTag, checkedInTag,
-            latest?.ProcessDefinitionKey.Value, error);
+        CamundaClusterReport Report(bool reachable, TopologyResponse? topology, IReadOnlyList<CamundaProcessReport> processes, string? error)
+        {
+            var excavation = processes.FirstOrDefault(p => p.ServiceCode == ExcavationProcess.Contract.ServiceCode);
+            return new CamundaClusterReport(
+                _options.RestAddress, _options.AuthStrategy, reachable,
+                topology?.GatewayVersion, topology?.Brokers?.Count,
+                topology?.Brokers?.All(b => b.Partitions?.All(p => p.Health == "healthy") ?? false) ?? false,
+                _options.ProcessId, excavation?.Deployed ?? false, excavation?.DeployedVersion, excavation?.DeployedVersionTag,
+                ExcavationProcess.CheckedInVersionTag(), excavation?.ProcessDefinitionKey, error, processes);
+        }
+        CamundaProcessReport[] NotChecked() => _processes.All.Select(p => new CamundaProcessReport(
+            p.Contract.ServiceCode, p.ProcessId, p.Contract.BpmnFileName, false, null, null, p.Contract.CheckedInVersionTag(), null)).ToArray();
 
         TopologyResponse topology;
         try
@@ -204,28 +238,36 @@ public sealed class CamundaSdkEngine : ICamundaEngine, IDisposable
         }
         catch (Exception e) when (e is WorkflowUnavailableException or NotFoundException)
         {
-            return Report(false, null, null, e.Message);
+            return Report(false, null, NotChecked(), e.Message);
         }
 
         try
         {
-            var definitions = await CallAsync("search process definitions", t => _client.SearchProcessDefinitionsAsync(
-                new ProcessDefinitionSearchQuery
-                {
-                    Filter = new ProcessDefinitionFilter
+            var reports = new List<CamundaProcessReport>();
+            foreach (var process in _processes.All)
+            {
+                var definitions = await CallAsync("search process definitions", t => _client.SearchProcessDefinitionsAsync(
+                    new ProcessDefinitionSearchQuery
                     {
-                        ProcessDefinitionId = new StringFilterProperty { Eq = _options.ProcessId },
-                        IsLatestVersion = true,
-                    },
-                }, ct: t), ct);
-            var latest = definitions.Items.OrderByDescending(d => d.Version).FirstOrDefault();
-            return Report(true, topology, latest, latest is null
-                ? $"Process '{_options.ProcessId}' is not deployed. Deploy excavation-permit.bpmn (see MODON.md)."
-                : null);
+                        Filter = new ProcessDefinitionFilter
+                        {
+                            ProcessDefinitionId = new StringFilterProperty { Eq = process.ProcessId },
+                            IsLatestVersion = true,
+                        },
+                    }, ct: t), ct);
+                var latest = definitions.Items.OrderByDescending(d => d.Version).FirstOrDefault();
+                reports.Add(new CamundaProcessReport(process.Contract.ServiceCode, process.ProcessId, process.Contract.BpmnFileName,
+                    latest is not null, latest?.Version, latest?.VersionTag, process.Contract.CheckedInVersionTag(),
+                    latest?.ProcessDefinitionKey.Value));
+            }
+            var missing = reports.Where(p => !p.Deployed).ToArray();
+            return Report(true, topology, reports, missing.Length == 0
+                ? null
+                : string.Join(" ", missing.Select(p => $"Process '{p.ProcessId}' is not deployed. Deploy {p.BpmnFile} (see MODON.md).")));
         }
         catch (Exception e) when (e is WorkflowUnavailableException or NotFoundException)
         {
-            return Report(true, topology, null, e.Message);
+            return Report(true, topology, NotChecked(), e.Message);
         }
     }
 

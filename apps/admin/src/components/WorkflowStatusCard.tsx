@@ -47,12 +47,24 @@ export function WorkflowStatusCard() {
             <dt>{t("camundaVersion")}</dt>
             <dd dir="ltr">{camunda.gatewayVersion ?? "—"}</dd>
           </div>
-          <div>
-            <dt>{t("processDeployed")}</dt>
-            <dd dir="ltr">
-              {camunda.processDeployed ? `${camunda.processId} v${camunda.deployedVersion}` : t("notDeployed")}
-            </dd>
-          </div>
+          {/* Per process once Camunda answered; while it is unreachable the deployment is unknown. */}
+          {(camunda.reachable && camunda.processes?.length
+            ? camunda.processes
+            : [{ processId: camunda.processId, deployed: camunda.processDeployed, deployedVersion: camunda.deployedVersion }]
+          ).map((p) => (
+            <div key={p.processId}>
+              <dt>{t("processDeployed")}</dt>
+              <dd dir="ltr">
+                {p.deployed ? (
+                  `${p.processId} v${p.deployedVersion}`
+                ) : (
+                  <>
+                    <span>{t("notDeployed")}</span> <span className="meta">({p.processId})</span>
+                  </>
+                )}
+              </dd>
+            </div>
+          ))}
         </dl>
       )}
       <p className="meta" dir="ltr">

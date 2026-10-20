@@ -54,7 +54,15 @@ export type RequestStatus =
   | "awaitingCoordinationLetters"
   | "approved"
   | "rejected"
-  | "cancelled";
+  | "cancelled"
+  // building licence
+  | "consultantSelection"
+  | "consultantTender"
+  | "awaitingConsultantDecision"
+  | "contractorSelection"
+  | "contractorTender"
+  | "awaitingContractorDecision"
+  | "underModonReview";
 export type RequestAction =
   | "create"
   | "submit"
@@ -63,7 +71,21 @@ export type RequestAction =
   | "returnForCompletion"
   | "resubmit"
   | "requestCoordinationLetters"
-  | "submitCoordinationLetters";
+  | "submitCoordinationLetters"
+  // building licence
+  | "openConsultantTender"
+  | "selectConsultant"
+  | "acceptConsultantQuotation"
+  | "rejectConsultantQuotations"
+  | "consultantAccepted"
+  | "consultantDeclined"
+  | "openContractorTender"
+  | "selectContractor"
+  | "acceptContractorQuotation"
+  | "rejectContractorQuotations"
+  | "contractorAccepted"
+  | "contractorDeclined"
+  | "submitProgressReport";
 
 /** Excavation permit form data. Dates are "yyyy-MM-dd"; every field may be null in a draft. */
 export interface ExcavationData {
@@ -138,9 +160,19 @@ export interface RequestDetail extends RequestSummary {
   canUploadCoordinationLetters: boolean;
   /** What Modon is waiting for the applicant to do, with the reviewer's instructions. */
   currentTask: ApplicantTask | null;
+  /** Building licence only: form, rounds and quotations, selected offices, progress reports. */
+  building: BuildingView | null;
 }
 
-export type ApplicantTaskKind = "completeReturnedRequest" | "uploadCoordinationLetters";
+export type ApplicantTaskKind =
+  | "completeReturnedRequest"
+  | "uploadCoordinationLetters"
+  | "chooseConsultant"
+  | "reviewConsultantQuotations"
+  | "chooseContractor"
+  | "reviewContractorQuotations"
+  | "respondAsConsultant"
+  | "respondAsContractor";
 
 export interface ApplicantTask {
   kind: ApplicantTaskKind;
@@ -177,4 +209,170 @@ export interface ServiceDetail extends ServiceSummary {
   stepsEn?: string;
   requiredDocumentsAr?: string;
   requiredDocumentsEn?: string;
+}
+
+// --- Building licence (Milestones 6–8) --------------------------------------------------------------
+
+export interface BuildingContact {
+  name: string | null;
+  email: string | null;
+  mobile: string | null;
+}
+
+/** Building licence form data (طلب رخصة بناء). Every field may be empty in a draft. */
+export interface BuildingLicenceData {
+  establishmentId: number | null;
+  contractNumber: string | null;
+  licenceTypeCode: string | null;
+  constructionBudgetSar: number | null;
+  floorCount: number | null;
+  scopeOfWork: string | null;
+  notes: string | null;
+  contacts: BuildingContact[];
+  termsAccepted: boolean;
+}
+
+export type BuildingStage = "consultant" | "contractor";
+export type SelectionMode = "openTender" | "direct";
+export type TenderState = "open" | "awarded" | "closed";
+export type QuotationState = "submitted" | "selected" | "notSelected" | "declined";
+export type PartnerRelation = "openTender" | "invited" | "awarded";
+export type OfficeDecision = "accept" | "reject";
+export type ConstructionPhase =
+  | "sitePreparation"
+  | "foundations"
+  | "structuralWorks"
+  | "wallsInsulationFloors"
+  | "electricalMechanicalArchitectural"
+  | "siteFinishingAndFence";
+
+/** A consulting office or contractor (commercial registration). */
+export interface OfficeInfo {
+  id: number;
+  crNumber: string;
+  nameAr: string;
+  nameEn: string;
+}
+
+export interface StoredFile {
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+}
+
+export interface PhasePlan {
+  phase: ConstructionPhase;
+  sharePercent: number | null;
+  durationDays: number | null;
+}
+
+export interface PhaseProgress {
+  phase: ConstructionPhase;
+  completionPercent: number | null;
+}
+
+export interface QuotationView {
+  id: number;
+  tenderId: number;
+  stage: BuildingStage;
+  office: OfficeInfo;
+  state: QuotationState;
+  amountSar: number | null;
+  comment: string | null;
+  commitmentsAccepted: boolean;
+  submittedAt: string;
+  attachment: StoredFile | null;
+  phases: PhasePlan[];
+}
+
+export interface TenderView {
+  id: number;
+  stage: BuildingStage;
+  mode: SelectionMode;
+  number: string | null;
+  invitedOffice: OfficeInfo | null;
+  state: TenderState;
+  openedAt: string;
+  closedAt: string | null;
+  quotations: QuotationView[];
+}
+
+export interface ProgressReportView {
+  id: number;
+  period: string;
+  office: OfficeInfo;
+  submittedByUserId: string;
+  submittedByEmail: string | null;
+  submittedAt: string;
+  comment: string | null;
+  attachment: StoredFile | null;
+  phases: PhaseProgress[];
+}
+
+export interface BuildingView {
+  form: BuildingLicenceData;
+  tenders: TenderView[];
+  selectedConsultant: OfficeInfo | null;
+  consultantQuotation: QuotationView | null;
+  selectedContractor: OfficeInfo | null;
+  contractorQuotation: QuotationView | null;
+  progressReports: ProgressReportView[];
+  currentProgress: PhaseProgress[];
+  /** Stage actions the investor may take now (the backend decides). */
+  investorActions: RequestAction[];
+}
+
+/** A row of GET /api/modon/building/projects. */
+export interface PartnerProjectSummary {
+  requestId: number;
+  requestNumber: string;
+  projectNumber: string | null;
+  status: RequestStatus;
+  stage: BuildingStage;
+  relation: PartnerRelation;
+  licenceTypeCode: string | null;
+  investor: OfficeInfo | null;
+  since: string;
+  answered: boolean;
+}
+
+/** GET /api/modon/building/projects/{id}: what an office may see of a project and do with it. */
+export interface PartnerProjectDetail {
+  requestId: number;
+  requestNumber: string;
+  status: RequestStatus;
+  relation: PartnerRelation;
+  stage: BuildingStage;
+  currentRound: TenderView | null;
+  investor: OfficeInfo | null;
+  licenceTypeCode: string | null;
+  constructionBudgetSar: number | null;
+  floorCount: number | null;
+  scopeOfWork: string | null;
+  notes: string | null;
+  submittedAt: string | null;
+  myOffices: OfficeInfo[];
+  myQuotations: QuotationView[];
+  attachmentSlots: AttachmentSlot[];
+  attachments: AttachmentInfo[];
+  consultantPlan: QuotationView | null;
+  progressReports: ProgressReportView[];
+  currentProgress: PhaseProgress[];
+  canQuote: boolean;
+  canRespond: boolean;
+  canReport: boolean;
+}
+
+export interface OfficeResponse {
+  decision: OfficeDecision;
+  amountSar: number | null;
+  comment: string | null;
+  commitmentsAccepted: boolean;
+  phases: PhasePlan[] | null;
+}
+
+export interface ProgressReportInput {
+  period: string;
+  phases: PhaseProgress[];
+  comment: string | null;
 }

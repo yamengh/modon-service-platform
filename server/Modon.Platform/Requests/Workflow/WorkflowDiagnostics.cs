@@ -40,9 +40,11 @@ public sealed class WorkflowDiagnostics(IRequestWorkflow workflow, IServiceProvi
         else if (c.Error is not null) summary = $"Camunda {c.GatewayVersion} at {c.RestAddress}: {c.Error}";
         else
         {
-            summary = $"Camunda {c.GatewayVersion} at {c.RestAddress}: process '{c.ProcessId}' version {c.DeployedVersion} is deployed.";
-            if (c.DeployedVersionTag != c.CheckedInVersionTag)
-                summary += $" Note: deployed version tag '{c.DeployedVersionTag}' differs from the checked-in BPMN ('{c.CheckedInVersionTag}').";
+            summary = $"Camunda {c.GatewayVersion} at {c.RestAddress}: " +
+                      string.Join(" and ", c.Processes.Select(p => $"process '{p.ProcessId}' version {p.DeployedVersion}")) +
+                      (c.Processes.Count == 1 ? " is deployed." : " are deployed.");
+            foreach (var p in c.Processes.Where(p => p.DeployedVersionTag != p.CheckedInVersionTag))
+                summary += $" Note: '{p.ProcessId}' deployed version tag '{p.DeployedVersionTag}' differs from the checked-in {p.BpmnFile} ('{p.CheckedInVersionTag}').";
         }
         return new WorkflowStatusReport(workflow.EngineName, ready, summary, c);
     }
