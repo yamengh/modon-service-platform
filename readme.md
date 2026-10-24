@@ -9,6 +9,8 @@ The platform is built on the open-source **[FormCMS](https://github.com/formcms/
 [Attribution](#attribution-and-licence)). Detailed setup, step-by-step walkthroughs and design notes are in
 **[MODON.md](MODON.md)**.
 
+Project status: This is an independent software prototype developed for educational and demonstration purposes. It is not an official MODON system and is not endorsed by the Saudi Authority for Industrial Cities and Technology Zones.
+
 ## Implemented services
 
 ### Building Licence & Construction Reports (رخصة البناء وتقارير البناء)
