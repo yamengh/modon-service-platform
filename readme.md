@@ -145,7 +145,7 @@ cd apps/admin  && npm test && npm run typecheck && npm run build
 cd apps/mobile && npm test && npm run typecheck && npx expo-doctor
 ```
 
-**Results of the last verified run** (release check for commit `fd72fd8`, 24 October 2026):
+**Results of the last verified run** (release check for commit `0bd24e8`, 24 October 2026):
 
 | Suite | Result |
 |---|---|
