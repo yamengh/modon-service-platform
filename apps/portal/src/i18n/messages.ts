@@ -328,6 +328,17 @@ const ar = {
   "relation.openTender": "مشروع مطروح",
   "relation.invited": "بانتظار ردك",
   "relation.awarded": "مشروع راسٍ",
+
+  // --- notifications ---
+  notifications: "الإشعارات",
+  notificationsIntro: "تحديثات طلباتك ومشاريعك: التقديم، الإعادة، خطابات التنسيق، القرارات، ومراحل رخصة البناء.",
+  noNotifications: "لا توجد إشعارات.",
+  markAllRead: "تحديد الكل كمقروء",
+  unreadOnly: "غير المقروءة فقط",
+  unreadLabel: "جديد",
+  openRequest: "فتح",
+  notificationDeliveryNote: "تظهر الإشعارات داخل البوابة والتطبيق فقط؛ لا تُرسل رسائل بريد إلكتروني أو SMS فعلية في هذه النسخة.",
+  loadMore: "المزيد",
 };
 
 export type MessageKey = keyof typeof ar;
@@ -660,6 +671,17 @@ const en: Record<MessageKey, string> = {
   "relation.openTender": "Open project",
   "relation.invited": "Waiting for you",
   "relation.awarded": "Awarded",
+
+  // --- notifications ---
+  notifications: "Notifications",
+  notificationsIntro: "Updates on your requests and projects: submission, returns, coordination letters, decisions and building-licence stages.",
+  noNotifications: "No notifications.",
+  markAllRead: "Mark all as read",
+  unreadOnly: "Unread only",
+  unreadLabel: "New",
+  openRequest: "Open",
+  notificationDeliveryNote: "Notifications appear in the portal and the app only; no real e-mail or SMS is sent in this version.",
+  loadMore: "Load more",
 };
 
 export const messages: Record<Lang, Record<MessageKey, string>> = { ar, en };

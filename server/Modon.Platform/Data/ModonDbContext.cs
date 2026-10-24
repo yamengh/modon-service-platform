@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Modon.Platform.Identity;
+using Modon.Platform.Notifications;
 using Modon.Platform.Organizations;
 using Modon.Platform.Requests;
 using Modon.Platform.Requests.Building;
@@ -24,6 +26,8 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
     public DbSet<BuildingTender> BuildingTenders => Set<BuildingTender>();
     public DbSet<BuildingQuotation> BuildingQuotations => Set<BuildingQuotation>();
     public DbSet<ProgressReport> ProgressReports => Set<ProgressReport>();
+    public DbSet<ModonNotification> Notifications => Set<ModonNotification>();
+    public DbSet<MobileSession> MobileSessions => Set<MobileSession>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder builder)
     {
@@ -115,6 +119,38 @@ public class ModonDbContext(DbContextOptions<ModonDbContext> options) : DbContex
         });
 
         ConfigureBuilding(b);
+
+        b.Entity<ModonNotification>(e =>
+        {
+            e.ToTable("modon_notifications");
+            e.Property(x => x.RecipientUserId).HasMaxLength(450);
+            e.Property(x => x.Kind).HasConversion<string>().HasMaxLength(40);
+            e.Property(x => x.Action).HasConversion<string>().HasMaxLength(40);
+            e.Property(x => x.Status).HasConversion<string>().HasMaxLength(40);
+            e.Property(x => x.RequestNumber).HasMaxLength(40);
+            e.Property(x => x.ServiceCode).HasMaxLength(60);
+            e.Property(x => x.TitleAr).HasMaxLength(300);
+            e.Property(x => x.TitleEn).HasMaxLength(300);
+            e.Property(x => x.Comment).HasMaxLength(2000);
+            e.Property(x => x.Link).HasMaxLength(200);
+            // A step notifies each person at most once.
+            e.HasIndex(x => new { x.HistoryId, x.RecipientUserId }).IsUnique();
+            e.HasIndex(x => new { x.RecipientUserId, x.CreatedAt });
+            e.HasIndex(x => x.DispatchedAt);
+            e.HasOne(x => x.History).WithMany().HasForeignKey(x => x.HistoryId);
+            e.HasOne<ServiceRequest>().WithMany().HasForeignKey(x => x.RequestId);
+        });
+
+        b.Entity<MobileSession>(e =>
+        {
+            e.ToTable("modon_mobile_sessions");
+            e.Property(x => x.TokenHash).HasMaxLength(64);
+            e.HasIndex(x => x.TokenHash).IsUnique();
+            e.Property(x => x.UserId).HasMaxLength(450);
+            e.HasIndex(x => x.UserId);
+            e.Property(x => x.SecurityStamp).HasMaxLength(256);
+            e.Property(x => x.DeviceName).HasMaxLength(100);
+        });
     }
 
     private static void ConfigureBuilding(ModelBuilder b)

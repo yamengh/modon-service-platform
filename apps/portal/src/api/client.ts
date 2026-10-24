@@ -1,5 +1,6 @@
 import type {
   AttachmentInfo,
+  NotificationPage,
   BuildingLicenceData,
   BuildingStage,
   OfficeInfo,
@@ -243,6 +244,22 @@ export const api = {
 
   projectFileUrl(id: number, kind: "quotations" | "progress-reports", fileId: number): string {
     return `/api/modon/building/projects/${id}/${kind}/${fileId}/attachment`;
+  },
+};
+
+/** The signed-in user's notifications. */
+export const notificationsApi = {
+  async list(page = 1, unreadOnly = false): Promise<NotificationPage> {
+    return json(await request(`/api/modon/notifications?page=${page}${unreadOnly ? "&unreadOnly=true" : ""}`));
+  },
+  async unreadCount(): Promise<number> {
+    return (await json<{ unreadCount: number }>(await request("/api/modon/notifications/unread-count"))).unreadCount;
+  },
+  async markRead(id: number): Promise<void> {
+    await request(`/api/modon/notifications/${id}/read`, { method: "POST" });
+  },
+  async markAllRead(): Promise<void> {
+    await request("/api/modon/notifications/read-all", { method: "POST" });
   },
 };
 

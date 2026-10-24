@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Modon.Platform.Catalog;
 using Modon.Platform.Data;
 using Modon.Platform.Documents;
+using Modon.Platform.Notifications;
 using Modon.Platform.Organizations;
 using Modon.Platform.Requests.Workflow;
 
@@ -145,7 +146,9 @@ public sealed class BuildingService(
             State = TenderState.Open, OpenedByUserId = user.Id, OpenedAt = Now(),
         };
         var comment = invited is null ? null : $"{invited.NameAr} / {invited.NameEn}";
-        if (await TransitionAsync(request, action, user.Id, comment, r => db.BuildingTenders.Add(round), ct) is { } problem)
+        // A directly chosen office is told it must answer.
+        OfficeNotice[]? notices = invited is null ? null : [new OfficeNotice(invited.Id, kind, NotificationKind.OfficeInvited)];
+        if (await TransitionAsync(request, action, user.Id, comment, r => db.BuildingTenders.Add(round), ct, notices: notices) is { } problem)
             return problem;
 
         if (mode == SelectionMode.OpenTender)
@@ -179,7 +182,7 @@ public sealed class BuildingService(
             round.State = TenderState.Awarded;
             round.ClosedAt = now;
             SetSelectedOffice(r, kind, chosen.EstablishmentId);
-        }, ct);
+        }, ct, notices: QuotationNotices(round, chosen.EstablishmentId, kind));
         if (problem is not null) return problem;
 
         await CloseLateQuotationsAsync(round.Id, ct);
@@ -205,7 +208,7 @@ public sealed class BuildingService(
             foreach (var q in round.Quotations.Where(q => q.State == QuotationState.Submitted)) q.State = QuotationState.NotSelected;
             round.State = TenderState.Closed;
             round.ClosedAt = r.UpdatedAt;
-        }, ct);
+        }, ct, notices: round is null ? null : QuotationNotices(round, chosenOffice: null, kind));
         if (problem is not null) return problem;
 
         if (round is not null) await CloseLateQuotationsAsync(round.Id, ct);
@@ -757,13 +760,22 @@ public sealed class BuildingService(
         => db.BuildingQuotations.Where(q => q.TenderId == roundId && q.State == QuotationState.Submitted)
             .ExecuteUpdateAsync(u => u.SetProperty(q => q.State, QuotationState.NotSelected), ct);
 
+    /// <summary>Offices that quoted in the round: the chosen one hears it was selected, the others that they were not.</summary>
+    private static OfficeNotice[] QuotationNotices(BuildingTender round, long? chosenOffice, BuildingStage stage)
+        => round.Quotations.Where(q => q.State == QuotationState.Submitted).Select(q => q.EstablishmentId).Distinct()
+            .Select(office => new OfficeNotice(office, stage,
+                office == chosenOffice ? NotificationKind.QuotationSelected : NotificationKind.QuotationNotSelected))
+            .ToArray();
+
     /// <param name="duplicateCode">Problem title when a unique index refuses the save (the same answer or month twice).</param>
+    /// <param name="notices">Offices to notify about the step (the applicant is notified by <see cref="RequestTransitions"/>).</param>
     private async Task<IResult?> TransitionAsync(ServiceRequest request, RequestAction action, string actorUserId, string? comment,
-        Action<ServiceRequest> sideEffects, CancellationToken ct, string duplicateCode = ProblemCodes.RequestChanged)
+        Action<ServiceRequest> sideEffects, CancellationToken ct, string duplicateCode = ProblemCodes.RequestChanged,
+        IReadOnlyList<OfficeNotice>? notices = null)
     {
         try
         {
-            await transitions.ApplyAndSaveAsync(request, action, actorUserId, comment, ct, sideEffects);
+            await transitions.ApplyAndSaveAsync(request, action, actorUserId, comment, ct, sideEffects, notices);
             return null;
         }
         // invalidTransition: not possible now (or the workflow already moved on); requestChanged: someone else acted first.

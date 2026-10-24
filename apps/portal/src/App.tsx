@@ -8,6 +8,7 @@ import { MyRequestsPage } from "./pages/MyRequestsPage";
 import { BuildingFormPage } from "./pages/BuildingFormPage";
 import { ProjectPage } from "./pages/ProjectPage";
 import { ProjectsPage } from "./pages/ProjectsPage";
+import { NotificationsPage } from "./pages/NotificationsPage";
 import { RequestDetailPage } from "./pages/RequestDetailPage";
 import { ServiceDetailPage } from "./pages/ServiceDetailPage";
 import { ServicesPage } from "./pages/ServicesPage";
@@ -34,6 +35,7 @@ export function App() {
         <Route path="/requests/:id/building" element={<BuildingFormPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:id" element={<ProjectPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/services" replace />} />
     </Routes>

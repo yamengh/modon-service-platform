@@ -376,3 +376,39 @@ export interface ProgressReportInput {
   phases: PhaseProgress[];
   comment: string | null;
 }
+
+// --- Notifications (final phase) ---------------------------------------------------------------------
+
+export type NotificationKind =
+  | "requestUpdate"
+  | "officeInvited"
+  | "quotationSelected"
+  | "quotationNotSelected"
+  | "projectApproved"
+  | "projectRejected";
+
+/** One of the signed-in user's in-app notifications (GET /api/modon/notifications). */
+export interface NotificationView {
+  id: number;
+  kind: NotificationKind;
+  requestId: number;
+  requestNumber: string;
+  serviceCode: string;
+  action: RequestAction;
+  status: RequestStatus;
+  titleAr: string;
+  titleEn: string;
+  comment: string | null;
+  /** Portal path: /requests/{id} for applicants, /projects/{id} for offices. */
+  link: string;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface NotificationPage {
+  items: NotificationView[];
+  total: number;
+  unreadCount: number;
+  page: number;
+  pageSize: number;
+}

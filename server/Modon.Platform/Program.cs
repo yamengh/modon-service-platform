@@ -11,6 +11,7 @@ using Modon.Platform.Documents;
 using Modon.Platform.Http;
 using Modon.Platform.Identity;
 using Modon.Platform.Lookups;
+using Modon.Platform.Notifications;
 using Modon.Platform.Requests;
 using Modon.Platform.Requests.Building;
 using Modon.Platform.Requests.Workflow;
@@ -55,6 +56,8 @@ builder.Services.AddOutputCache(cache =>
 builder.Services.AddCmsAuth<CmsUser, IdentityRole, CmsDbContext>(
     new AuthConfig(KeyAuthConfig: new KeyAuthConfig(apiKey)));
 builder.Services.AddAuditLog();
+// Mobile app: user-specific bearer tokens next to the FormCMS cookie (the shared API key is never used by the app).
+builder.Services.AddModonMobileAuth(builder.Configuration);
 builder.Services.AddNotify();
 
 // Modon workflow data (requests, history, attachments, establishments) — own EF Core context.
@@ -71,6 +74,7 @@ builder.Services.ConfigureHttpJsonOptions(o =>
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<ConstructionPhase>(JsonNamingPolicy.CamelCase));
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<OfficeDecision>(JsonNamingPolicy.CamelCase));
     o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<PartnerRelation>(JsonNamingPolicy.CamelCase));
+    o.SerializerOptions.Converters.Add(new JsonStringEnumConverter<NotificationKind>(JsonNamingPolicy.CamelCase));
 });
 builder.Services.AddSingleton(TimeProvider.System);
 
@@ -95,6 +99,15 @@ builder.Services.AddScoped<ILookupService, LookupService>();
 builder.Services.AddScoped<ExcavationValidator>();
 builder.Services.AddSingleton<UploadValidator>();
 builder.Services.AddScoped<RequestTransitions>();
+
+// In-app notifications (saved with each status step), copied to FormCMS's inbox; e-mail/SMS are logging stubs only.
+builder.Services.AddSingleton<DevDeliveryLog>();
+builder.Services.AddScoped<NotificationPlanner>();
+builder.Services.AddScoped<NotificationDispatcher>();
+builder.Services.AddScoped<INotificationChannel, FormCmsInboxChannel>();
+builder.Services.AddScoped<INotificationChannel, LoggingEmailChannel>();
+builder.Services.AddScoped<INotificationChannel, LoggingSmsChannel>();
+builder.Services.AddHostedService<NotificationRetryService>();
 builder.Services.AddScoped<ServiceCatalogNames>();
 builder.Services.AddScoped<BuildingValidator>();
 builder.Services.AddScoped<BuildingService>();
@@ -120,6 +133,8 @@ await app.EnsureModonSchemaAsync(dbProvider);
 
 app.UseModonClientHeader();
 app.MapPersonaEndpoints();
+app.MapMobileSessionEndpoints();
+app.MapNotificationEndpoints();
 app.MapRequestEndpoints();
 app.MapReviewEndpoints();
 // "Healthy" / "Unhealthy" only (details: GET /api/modon/review/workflow). Never served from FormCMS's output cache.

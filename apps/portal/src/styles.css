@@ -179,3 +179,11 @@ table.phases [aria-invalid="true"] { border-color: var(--danger); }
   .contact-row, .progress-list li { grid-template-columns: 1fr; }
   .contact-row .link-btn { margin-block-start: 0; }
 }
+
+/* Notifications */
+.count-badge { display: inline-block; min-inline-size: 1.3rem; margin-inline-start: 0.35rem; padding: 0 0.35rem; border-radius: 999px; background: var(--danger); color: #fff; font-size: 0.75rem; text-align: center; }
+.notification-list { list-style: none; padding: 0; margin: 1rem 0; display: flex; flex-direction: column; gap: 0.6rem; }
+.notification { display: flex; justify-content: space-between; gap: 1rem; align-items: flex-start; }
+.notification.unread { border-inline-start: 4px solid var(--green); }
+.notification p { margin: 0.2rem 0; }
+.toolbar { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }

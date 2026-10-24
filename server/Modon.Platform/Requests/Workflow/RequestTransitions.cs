@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Modon.Platform.Data;
+using Modon.Platform.Notifications;
 
 namespace Modon.Platform.Requests.Workflow;
 
@@ -8,17 +9,22 @@ namespace Modon.Platform.Requests.Workflow;
 /// history row (actor, action, comment, time) and saves. <see cref="ServiceRequest.Status"/> is a concurrency
 /// token, so if another user changed the status in the meantime the save fails instead of recording a second
 /// transition; the engine step is then compensated where possible and the exception is rethrown.
+/// The step's notifications are saved in the same transaction (so a refused or repeated action notifies nobody), and
+/// handed to the other channels after the commit.
 /// </summary>
 public sealed class RequestTransitions(
     IRequestWorkflow workflow,
     ModonDbContext db,
+    NotificationPlanner notifications,
+    NotificationDispatcher dispatcher,
     TimeProvider clock,
     ILogger<RequestTransitions> logger)
 {
     /// <param name="beforeSave">Extra changes saved together with the transition (e.g. the submission date).</param>
+    /// <param name="officeNotices">Building licence: offices to notify about this step, besides the applicant.</param>
     public async Task<RequestStatusHistory> ApplyAndSaveAsync(
         ServiceRequest request, RequestAction action, string actorUserId, string? comment, CancellationToken ct,
-        Action<ServiceRequest>? beforeSave = null)
+        Action<ServiceRequest>? beforeSave = null, IReadOnlyList<OfficeNotice>? officeNotices = null)
     {
         WorkflowStep step;
         try
@@ -53,6 +59,7 @@ public sealed class RequestTransitions(
             request.WorkflowDefinitionVersion = started.ProcessDefinitionVersion;
         }
         beforeSave?.Invoke(request);
+        var planned = await notifications.PlanAsync(request, entry, officeNotices, ct);
 
         try
         {
@@ -63,7 +70,22 @@ public sealed class RequestTransitions(
             await CompensateQuietlyAsync(request, step, saveError);
             throw;
         }
+        await DispatchQuietlyAsync(request, planned);
         return entry;
+    }
+
+    /// <summary>The step is saved; a channel failure must not turn it into an error (the retry service tries again).</summary>
+    private async Task DispatchQuietlyAsync(ServiceRequest request, IReadOnlyList<ModonNotification> planned)
+    {
+        if (planned.Count == 0) return;
+        try
+        {
+            await dispatcher.DispatchAsync(planned.Select(n => n.Id).ToArray(), CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Request {Number}: notifications saved but not yet delivered; they will be retried", request.RequestNumber);
+        }
     }
 
     private async Task CompensateQuietlyAsync(ServiceRequest request, WorkflowStep step, Exception saveError)

@@ -9,10 +9,24 @@ This repository is **FormCMS** plus a Modon layer built on top of it. The FormCM
 | `server/Modon.Platform.Tests/` | Backend tests (xUnit). They start the real backend on a temporary SQLite database. |
 | `apps/portal/` | Investor / partner web portal (React + Vite + TypeScript, Arabic first) — port 5173. |
 | `apps/admin/` | Modon admin / reviewer portal (same stack and conventions) — port 5174. |
+| `apps/mobile/` | Partner mobile app (React Native, Expo SDK 58, Expo Router, TypeScript, Arabic first) — section 8. |
 | `docker-compose.yml` | PostgreSQL for local development. |
 | `modon-platform.sln` | Solution with only FormCMS + Modon projects (open this one in your IDE). |
 
-**Current milestones (6–8): Building Licence & Construction Reports** (رخصة البناء وتقارير البناء), following the
+**Final delivery phase: mobile app, notifications and full regression verification.**
+
+- **Expo mobile app** (`apps/mobile`, section 8) for investors, contractors and consulting offices: sign-in with a
+  user-specific token kept in the device's secure storage, the catalogue, both services' applications (drafts,
+  attachments from the device's document picker, submit / resubmit, coordination letters), the building licence's
+  consultant and contractor stages, quotations, monthly progress reports, the task inbox, status history and
+  notifications — all through the same backend API, in Arabic (RTL) or English. Review decisions stay in the admin portal.
+- **In-app notifications** (section 9) for submissions, returns, resubmissions, coordination letters, decisions and the
+  building licence's stage changes — visible only to their recipient, never duplicated, shown in the web portal
+  (**الإشعارات**) and in the app, and copied into FormCMS's own notification inbox. E-mail and SMS are development
+  stubs that only log what would be sent.
+- **Regression**: both service workflows re-verified automatically and live (section 10).
+
+**Milestones 6–8: Building Licence & Construction Reports** (رخصة البناء وتقارير البناء), following the
 building-licence user manual (January 2026) — step-by-step in section 5f:
 
 - the investor's **application**: drafts, commercial registration, contract / registration number, licence type,
@@ -43,8 +57,8 @@ Everything from Milestone 4:
   **approve**, **request coordination letters** (optional instructions), **return for completion**
   (comment required) and **reject** (reason required).
 
-Not in these milestones: the Expo mobile app and e-mail/SMS notifications (the manual mentions an e-mail and SMS
-after submission); both belong to the remaining delivery phases.
+Not enabled: real e-mail and SMS delivery (logging stubs only), and remote push notifications to phones (the app
+shows in-app notifications when it is open). See "Final phase: assumptions and what is not verified" at the end.
 
 ---
 
@@ -255,7 +269,21 @@ cd apps/admin
 npm test
 npm run typecheck
 npm run build
+
+# mobile app
+cd apps/mobile
+npm test
+npm run typecheck
+npx expo-doctor
+npm run export:android     # production JS bundle (Hermes) in apps/mobile/dist (git-ignored)
 ```
+
+Final-phase tests: `MobileAuthTests.cs` (token sign-in, wrong password, logout/revocation, session restore, expired /
+revoked / tampered / stale tokens, role restrictions, the shared API key is not a credential, uploads with a token, web
+cookie unchanged), `NotificationTests.cs` (who is notified for each step of both services, one notification per step,
+recipient-only access, read state, FormCMS inbox copy and e-mail stub). The portal's `Notifications.test.tsx`, and the
+app's `__tests__/` (sign-in, restore, expiry, offline, logout, catalogue, forms, uploads with retry, building stages,
+offices, letters, notifications, language).
 
 The backend tests run on SQLite. To check the same flows against PostgreSQL, start the backend normally
 (`dotnet run`) and follow steps 5b–5f by hand; the request history in the admin portal must show one row
@@ -274,9 +302,10 @@ cluster is a separate, manual step — see section 7.5.
 ## How the pieces fit
 
 ```
-Partner portal :5173 ─┐
-                      ├─/api──► Modon.Platform :5100 ──► PostgreSQL :5433
-Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entities, saved queries
+Partner portal :5173 ─┐   (cookie)
+Admin portal   :5174 ─┼─/api──► Modon.Platform :5100 ──► PostgreSQL :5433
+Mobile app (Expo)    ─┘   (bearer token)
+                                  ├─ FormCMS: login cookie, roles, entities, saved queries, notification inbox
                                   ├─ Modon:   personas, requests, attachments, tasks, review, seeding
                                   │           (own tables "modon_*", EF Core)
                                   └─ Workflow: in-process rules, or ──REST /v2──► Camunda 8.9 :8080
@@ -297,6 +326,10 @@ Admin portal   :5174 ─┘           ├─ FormCMS: login cookie, roles, entit
 | `POST /api/modon/requests/{id}/submit` | Modon | Submit a draft, or resubmit a returned request (all required fields and attachments) |
 | `POST · DELETE · GET /api/modon/requests/{id}/attachments/{slot}` | Modon | Upload (multipart `file`) · remove · download — application documents and coordination letters |
 | `POST /api/modon/requests/{id}/coordination-letters/submit` | Modon | Send the three coordination letters → InProgress |
+| `POST /api/modon/mobile/session` · `DELETE …` | Modon (mobile) | `{ email, password, deviceName }` → `{ token, expiresAt, user }` (no cookie) · sign out: revoke the token |
+| `GET /api/modon/notifications?page=&unreadOnly=` | Modon | My notifications (newest first) with the unread count |
+| `GET /api/modon/notifications/unread-count` · `POST …/{id}/read` · `POST …/read-all` | Modon | Badge count · mark one / all read (only my own; others' ids are 404) |
+| `GET /api/notifications` · `GET /api/notifications/unread` | FormCMS | FormCMS's own notification inbox, which receives a copy of each Modon notification |
 | `GET /api/modon/tasks` | Modon | My task inbox: excavation requests returned or awaiting letters; building requests waiting for my choice; building requests where an investor chose my office |
 | `PUT /api/modon/requests/{id}/building` | Modon (investor) | Save the building-licence draft (format checks only) |
 | `POST /api/modon/requests/{id}/building/{consultant\|contractor}/selection` | Modon (investor) | `{ "mode": "openTender" \| "direct", "establishmentId": … }` — open project or specific office |
@@ -354,7 +387,11 @@ Security rules enforced by the backend:
 - Uploaded documents are stored **outside** `wwwroot` (`server/Modon.Platform/App_Data/private-documents`)
   and can only be downloaded by their owner or, once submitted, by a reviewer. Size, extension, MIME type
   and file signature are checked.
-- State-changing `/api/modon` calls need the header `X-Modon-Client` (the portal sends it), which blocks cross-site form posts.
+- State-changing `/api/modon` calls need the header `X-Modon-Client` (the portals and the app send it), which blocks cross-site form posts.
+- The mobile app authenticates with its own **user-specific bearer token** (`Authorization: Bearer mdn_…`, section 8.2).
+  It gives exactly the signed-in user's rights — the same role, ownership and office checks as the web — and never the
+  server's shared FormCMS API key, which the app neither has nor can use (a request with it gets 401).
+- Notifications are only ever listed, counted or marked read for their own recipient.
 - With Camunda enabled, every status change is first performed in Camunda and then saved in PostgreSQL. If Camunda
   is unreachable, refuses the call or the process is not deployed, the action returns **503** `workflowUnavailable`
   and nothing changes. See section 7.4 for how duplicates and failures are handled.
@@ -382,6 +419,13 @@ FormCMS admin tools without code changes. The seeder only adds missing services;
 | Startup log says `Process 'modon-building-licence' is not deployed` | Deploy `building-licence.bpmn` (section 7.2). Until then building submissions and stage actions get 503; the excavation permit keeps working. |
 | A consultant or contractor sees no projects | The user needs the role **and** membership of an establishment flagged `IsConsultingOffice` / `IsContractor` (dev seeding does this for the demo accounts). Open projects only appear after the investor chose **المشروع**. |
 | The investor sees no quotations yet | Quotations appear when an office submits one; the task **اختيار عرض سعر من المكاتب** appears with the first one. |
+| App: "لم يتم ضبط عنوان الخادم" (server address not set) | Create `apps/mobile/.env.local` with `EXPO_PUBLIC_API_BASE_URL` (section 8.3) and restart `npx expo start --clear`. |
+| App: "تعذر الوصول إلى الخادم" (cannot reach the server) | The address must be reachable **from the phone**: emulator `http://10.0.2.2:5100`, physical phone `http://<PC LAN IP>:5100` with the backend started as `--launch-profile http-lan` and the Windows firewall allowing port 5100 on the **private** network. `localhost` on a phone is the phone itself. |
+| Expo Go: "You're signed in to Expo Go as …, but not signed in to Expo CLI" | Sign out of Expo Go on the phone (no Expo account is needed), or sign in on the PC with `npx expo login --no-browser` (the browser login can fail on Windows). |
+| Moving the project to another PC | Git has neither the uploaded files nor the data. Copy `server/Modon.Platform/App_Data/private-documents` to the same place and restore a `pg_dump` of the `modon` database taken at the same time; one without the other leaves documents missing or orphaned. |
+| App sign-in: "هذا التطبيق للمستثمرين…" (403) | Reviewers and the super admin get no mobile token by design; they use the admin web portal. |
+| App returns to sign-in with "انتهت جلستك" | The token expired (30 days), was revoked by signing out, or the password changed. Sign in again. |
+| Android: requests over `http://` fail in a development build | Expo Go allows plain HTTP to a LAN address. A custom development or release build needs HTTPS (or a cleartext exception through `expo-build-properties`); production should use HTTPS. |
 | Camunda element names look garbled in Operate (e.g. `Ã˜Â…`) | The local bundle mis-reads non-ASCII names. The checked-in BPMN uses English names only; don't add Arabic names to it. |
 
 ## For developers: changing the Modon tables
@@ -649,6 +693,214 @@ Where the manual is silent or contradicts itself, the prototype does the followi
 - Offices are establishments flagged as consulting office / contractor by seeding; there is no registration screen for
   offices yet. Open projects are offered to every registered office of the right kind.
 - No e-mail or SMS is sent (the manual mentions both after submission).
+
+## 8. Mobile app (Expo) — final phase
+
+### 8.1 Architecture
+
+`apps/mobile` is an Expo SDK 58 app (React Native 0.88, React 19.3, TypeScript, Expo Router), created from Expo's
+official template, with dependencies added through `npx expo install` (SDK-matched versions, pinned by `package-lock.json`).
+
+| Path | What it is |
+|---|---|
+| `src/app/` | Routes (Expo Router). `login.tsx`; `(app)/_layout.tsx` guards every signed-in screen; `(app)/(tabs)/` = services, my requests, tasks, projects (offices only), notifications, more; detail routes `services/[code]`, `requests/[id]` (+ `excavation`, `building`, `letters`), `projects/[id]`. |
+| `src/api/client.ts` | The HTTP client: base URL from configuration, bearer token, `X-Modon-Client: mobile`, offline / 401 handling, multipart uploads, protected downloads. |
+| `src/api/types.ts` | Re-exports the **portal's** API types (type-only) — one contract for web and app. |
+| `src/auth/` | Sign-in state (restoring / signed in / signed out / offline) and secure token storage. |
+| `src/i18n/` | Arabic by default, English on request; reuses the portal's message file plus app-only texts. Layout direction is handled by the app's components, so switching language needs no restart. |
+| `src/components/` | Accessible building blocks (48 dp touch targets, labelled fields, radio/checkbox roles, alerts), the attachment field, building-licence panels. |
+| `__tests__/`, `test/` | Jest (`jest-expo`) + React Native Testing Library + Expo Router's testing library, against a fake backend. |
+
+There is **no mobile database and no copy of the workflow**: every screen calls the existing Modon API, and the backend
+decides what is allowed (the app only hides buttons the backend would refuse). The app reuses the portal's
+browser-free TypeScript modules — API types, messages, `excavationForm.ts` / `buildingForm.ts` validation and
+`serviceAvailability.ts` — through the `@portal/*` alias (`tsconfig.json`, `metro.config.js` watches
+`apps/portal/src`, Jest `moduleNameMapper`); no React web components are imported.
+
+### 8.2 Sign-in and the token
+
+FormCMS only offers a session cookie and a shared API key (which acts as the super admin). Neither is suitable for a
+phone, so Modon.Platform adds a **mobile bearer token** without changing FormCMS (`Identity/MobileSessions.cs`):
+
+- `POST /api/modon/mobile/session` checks the password with ASP.NET Identity (with lockout) and returns a random 256-bit
+  token (`mdn_…`) valid for **30 days** (`Modon:MobileAuth:TokenLifetimeDays`). No cookie is set. Only users with a
+  partner persona (investor, contractor, consultant) get a token; reviewers and `sa` get **403**.
+- PostgreSQL (`modon_mobile_sessions`) stores only the token's **SHA-256 hash**, the user, the user's security stamp,
+  the device name and the dates. A token stops working when it expires, when it is revoked (`DELETE
+  /api/modon/mobile/session` on sign-out), or when the user's security stamp changes (e.g. a password change).
+- The default authentication scheme becomes a small policy scheme: requests carrying `Bearer mdn_…` are authenticated by
+  the token handler (with exactly the claims a cookie sign-in would have); everything else goes to the FormCMS cookie as
+  before — the web portals are unaffected. The shared API key is never accepted for Modon endpoints and is never given to
+  the app.
+- On the device the token is kept only in **`expo-secure-store`** (Android Keystore / iOS Keychain,
+  `WHEN_UNLOCKED_THIS_DEVICE_ONLY`: not readable while locked, not in backups) — never AsyncStorage. On start the app
+  restores the session by calling `GET /api/modon/me/personas`; a 401 (expired/revoked) signs out with a message; a
+  network failure keeps the token and shows a retry screen. Any 401 during use signs the user out.
+
+### 8.3 API address (emulator, phone, computer)
+
+The app has **no built-in address**. Set it in `apps/mobile/.env.local` (git-ignored; template: `.env.example`):
+
+| Where the app runs | `EXPO_PUBLIC_API_BASE_URL` | Backend started with |
+|---|---|---|
+| Android emulator on this PC | `http://10.0.2.2:5100` (the emulator's alias for the PC) | `dotnet run` or `--launch-profile http-camunda` |
+| Physical phone on the same Wi-Fi | `http://<this PC's LAN IP>:5100` (find it with `ipconfig`, e.g. `192.168.1.20`) | `--launch-profile http-lan` (or `http-lan-camunda`) |
+| iOS simulator / tools on this PC | `http://127.0.0.1:5100` | `dotnet run` |
+
+The normal profiles listen on `localhost` only. The **`http-lan` / `http-lan-camunda`** profiles listen on all
+network interfaces (`0.0.0.0:5100`) and exist only for testing on a phone: use them on a trusted private network,
+allow port 5100 in the Windows firewall for the **Private** profile only, and stop the backend afterwards. Never expose
+the development backend (with its seeded demo accounts) to a public network. Only non-secret values belong in
+`EXPO_PUBLIC_*` variables — they are compiled into the app.
+
+### 8.4 Run it
+
+```bash
+cd apps/mobile
+npm install
+copy .env.example .env.local        # then edit EXPO_PUBLIC_API_BASE_URL (Windows; cp on macOS/Linux)
+npx expo start                      # QR code for Expo Go on a phone; press "a" for the Android emulator
+npx expo start --android            # same, opening the Android emulator directly (Android Studio emulator running)
+npm test                            # Jest
+npm run typecheck                   # tsc --noEmit
+npx expo-doctor                     # dependency / configuration diagnostics
+npm run export:android              # production JS bundle (Hermes) into dist/
+```
+
+A store-ready binary (`.apk`/`.aab`/`.ipa`) needs a native build (`npx expo run:android` with Android Studio, or EAS
+Build with an Expo account); that is outside this phase — `expo export` is the production check used here.
+
+### 8.5 Attachments on the phone
+
+Files are chosen with the system **document picker** (`expo-document-picker`, copied to the app's cache) — the picker is
+filtered to the slot's formats, and the same checks as the web run before uploading (not empty, size limit, allowed
+extension). Uploads go to the existing protected endpoint (`POST /api/modon/requests/{id}/attachments/{slot}`, or the
+office answer/report endpoints) as multipart with the bearer token, with the content type of the file's extension; the
+backend still checks size, extension, declared type and file signature. Expo SDK 58 replaces the global `fetch` with
+Expo's own, which cannot send React Native's `{ uri, name, type }` file parts, so each file part also carries a `bytes()`
+reader (`expo-file-system`) that Expo's `fetch` uses to send the content (`src/api/client.ts`, tested in
+`__tests__/client-test.ts` with Expo's own multipart encoder). A failed upload keeps the picked file and
+offers **إعادة رفع الملف** (upload again). Opening a document downloads it with the token into the app's private cache
+and hands it to the system viewer — documents never get a public URL. No camera, location or other permission is
+requested.
+
+| Slot | Formats | Max |
+|---|---|---|
+| Excavation: work location photo | JPEG, JPG, PNG | 20,480 KB |
+| Excavation: five other documents, three coordination letters | JPEG, JPG, PNG, PDF | 20,480 KB |
+| Building: approved general plans, approved safety plans | PDF, PNG | 20,480 KB |
+| Building: general attachment; office answer and progress-report attachments | JPEG, JPG, PNG, PDF, DOC, DOCX, XLS, XLSX | 10,240 KB |
+
+### 8.6 Walkthrough in the app
+
+Sign in as `contractor@modon.local`, `investor@modon.local` or `consultant@modon.local` (password `Modon@Dev1`):
+**الخدمات** → a service → **بدء الخدمة** (only the service of your persona is enabled) → fill the form, pick the
+attachments, **حفظ كمسودة** / **تقديم الطلب**. **طلباتي** shows number, service, status and dates; a request shows the
+current task (Modon's comment), the details, the documents and the full history. **المهام** lists what is waiting
+for you; **المشاريع** (offices) lists open projects, invitations and awarded projects with the quote, accept/reject and
+monthly-report forms; **الإشعارات** lists your notifications; **المزيد** switches language and signs out.
+
+## 9. Notifications — final phase
+
+- **When.** Every status-history step creates notifications in the same database transaction
+  (`modon_notifications`):
+  - the **applicant** for each step on their request — submission, resubmission and sent letters (confirmations), return
+    for completion (with Modon's comment), coordination letters requested, approval, rejection, an office's
+    acceptance/rejection, each monthly progress report — but not for the investor's own stage choices;
+  - **offices** (all members holding the stage's role): an invitation when an investor chooses them directly, whether
+    their quotation was chosen or not, and Modon's approval/rejection of a project they were selected for.
+  Reviewers are not notified (there is no assignment of requests to reviewers).
+- **No duplicates.** A step writes exactly one history row, and a unique index (history row, recipient) allows one
+  notification per person per step. A repeated, conflicting or refused action writes no history row and so notifies
+  nobody (tested with simultaneous decisions and checked live).
+- **Privacy.** The list, the count and mark-as-read are filtered by the caller's own user id; another user's
+  notification id answers 404.
+- **Where they appear.** The web portal (**الإشعارات** in the top bar, with the unread count) and the app's
+  notifications tab (badge). Titles are composed on the server in Arabic and English. Opening one marks it read and goes
+  to the request (applicants) or the project (offices).
+- **Other channels.** After the transaction commits, each notification is handed to:
+  - FormCMS's own notification store (`__notifications`, `GET /api/notifications`) through FormCMS's
+    `NotificationCollectService`, so FormCMS's unread counter includes them;
+  - an **e-mail stub** and an **SMS stub** that only write `[DEV E-MAIL — NOT SENT]` / `[DEV SMS — NOT SENT]` lines to the
+    backend log (SMS only when the user has a phone number). **No e-mail or SMS is actually sent**, and no provider or
+    credentials are configured.
+  Each notification is claimed once before delivery (no double delivery); a failed delivery is retried every 30 seconds
+  (up to 5 attempts) without affecting the request.
+- **Push notifications** to phones are not implemented (they need a push service and production credentials); the app
+  refreshes its badge and lists whenever you move between screens or pull to refresh.
+
+## 10. Run everything and test both services end to end
+
+### 10.1 Start the environment
+
+```bash
+docker compose up -d                                   # PostgreSQL on 127.0.0.1:5433 (repository root)
+docker start orchestration                             # Camunda 8.9 (only for the Camunda engine; section 7.1)
+cd server/Modon.Platform && dotnet run --launch-profile http-camunda   # or: dotnet run (built-in rules)
+cd apps/portal && npm run dev                          # partner portal  http://localhost:5173
+cd apps/admin  && npm run dev                          # admin portal    http://localhost:5174
+cd apps/mobile && npx expo start                       # mobile app (set .env.local first, section 8.3)
+```
+
+The backend log must say `Workflow engine ready (camunda): … 'modon-excavation-permit' version 2 and process
+'modon-building-licence' version 1 are deployed.` (or `inProcess` without Camunda). It uses the PostgreSQL connection
+in `appsettings.Development.json` (`Host=127.0.0.1;Port=5433;Database=modon`) and the Camunda settings of section 7.3.
+
+### 10.2 Excavation Works Permit (web or app)
+
+1. As `contractor@modon.local` (portal or app): start **تصريح أعمال الحفر**, fill the form, attach the six documents,
+   save a draft, reopen it, submit → **قيد التنفيذ**; a notification "تم تقديم الطلب" appears.
+2. As `reviewer@modon.local` (admin portal): open it, **إعادة لإكمال النواقص** with a comment.
+3. Contractor: notification with the comment; **المهام** → edit → resubmit (same number).
+4. Reviewer: **طلب خطابات التنسيق**. Contractor: upload the three letters, send them.
+5. Reviewer: **اعتماد الطلب** (or **رفض الطلب** with a reason). Contractor: final notification; the history shows one row
+   per step with actor and comments. With Camunda: Operate shows the instance completed at *Permit approved*.
+
+### 10.3 Building Licence (web or app)
+
+1. As `investor@modon.local`: start **رخصة البناء وتقارير البناء**, fill the basic information, contacts, the two plans,
+   accept the terms, submit → **مرحلة اختيار المكتب الاستشاري**.
+2. Choose **المشروع**; as `consultant@modon.local` quote in **المشاريع**; as the investor pick it (the office is notified)
+   — or choose the office directly and let it accept (phase table, commitments, optional attachment) or reject.
+3. Contractor stage the same way with `contractor@modon.local` (it is notified of a direct choice).
+4. As `reviewer@modon.local`: review the plans, offices and quotations, approve or reject (investor and offices notified).
+5. As the consultant: submit a monthly progress report; the investor is notified and sees the completion bars.
+
+### 10.4 Verification performed for this phase
+
+Automated: backend 149 tests (SQLite, fake Camunda), partner portal 69, admin portal 39, mobile app 34; type-checks,
+production builds and `expo export` for Android and iOS. `expo-doctor` passes 19/20: the remaining check only reports that
+Expo has since published newer patch releases (`expo` 58.0.19, `expo-file-system` 58.0.11, `expo-router` 58.0.26; the
+lock file pins 58.0.17 / 58.0.10 / 58.0.25, the versions the app was accepted with). Run `npx expo install --check` to
+upgrade them later, then retest on the phone.
+
+Live (real PostgreSQL + Camunda 8.9.21, temporary backend in Camunda mode): the mobile-API and notification scenario
+(37 checks: token sign-in/refusals, hash-only storage, catalogue with a token, both services end to end through the
+mobile endpoints, notifications per step and per office, privacy, FormCMS inbox copy, e-mail stub log, logout
+revocation), plus the earlier excavation (Milestone 4: 36 + 18 race checks, Milestone 5: 38) and building-licence
+(46) live scenarios, all passing. The Expo dev server was started and served the Android and iOS bundles over the LAN,
+and an upload in exactly the multipart format Expo's `fetch` produces was accepted by the backend over the LAN. Test
+requests created by these runs were removed afterwards; existing requests were not touched.
+
+Manual: the project owner ran the acceptance checklist on an iPhone (Expo Go, SDK 58), the partner portal and the
+admin portal — mobile attachment uploads, both service workflows, quotations, monthly reports, reviewer decisions and
+notifications — and reported every item as passing.
+
+## Final phase: assumptions and what is not verified
+
+- The app was tested manually on an **iPhone with Expo Go** (section 10.4). It was **not run on Android** (no emulator
+  image or device was available), and no native/store build (`.apk`/`.aab`/`.ipa`) was made.
+- Uploaded documents live on the backend's disk (`App_Data/private-documents`, git-ignored) and their records in
+  PostgreSQL (Docker volume); neither is in git. Moving to another PC means copying both (see Troubleshooting).
+- Mobile tokens last 30 days without refresh tokens; signing in again issues a new token. Tokens are revoked one at a
+  time (sign-out); there is no "sign out everywhere" screen yet (a password change does end all of them).
+- Reviewers have no mobile access (admin decisions stay in the admin portal, as required).
+- Date fields in the app are typed as `YYYY-MM-DD` (React Native has no built-in date picker; no extra native date
+  picker was added).
+- Notifications: reviewers are not notified; a quotation submitted to an open project does not notify the investor (it
+  is not a workflow step — the investor's task inbox shows it); no push, e-mail or SMS delivery.
+- The copy in FormCMS's `__notifications` is best-effort after the commit (retried); Modon's own table is the source of
+  truth for the portal and the app.
 
 ## Milestone 5 assumptions and limitations
 
